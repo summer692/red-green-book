@@ -154,7 +154,7 @@ summary::-webkit-details-marker { display: none; }
 
 /* 封面 */
 .tpl-cover { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
-.cover-title { font-family: var(--font-display); font-weight: 900; font-size: 80px; line-height: 1.08; letter-spacing: 1px; color: var(--title-color); white-space: pre-wrap; word-break: break-word; margin: 0; }
+.cover-title { font-family: var(--cover-font, var(--font-display)); font-weight: 900; font-size: 80px; line-height: 1.08; letter-spacing: 1px; color: var(--title-color); white-space: pre-wrap; word-break: break-word; margin: 0; }
 .cover-memoji { margin-top: 26px; height: 190px; width: auto; object-fit: contain; }
 
 /* 双语分析 */

@@ -6,6 +6,15 @@
   const DISP_W = 250;
   const TYPE_LABEL = { cover: '封面', bilingual: '双语分析', table: '排名表格', list: '列表', policy: '政策', text: '文本' };
   const DEFAULT_FOOTER = '备注：本文所提供的信息均来源于大学官网。申请时请务必以学校官网公布的最新信息为准。';
+  // 注意：用单引号包字体名，避免破坏导出时的 style="…" 双引号属性
+  const FONT_STACKS = {
+    hei: "-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif",
+    yuan: "'Yuanti SC', 'Yuppy SC', 'PingFang SC', sans-serif",
+    kai: "'Kaiti SC', 'STKaiti', 'KaiTi', serif",
+    song: "'Songti SC', 'STSong', 'SimSun', serif",
+    custom: "'EduDisplay', -apple-system, 'PingFang SC', sans-serif",
+  };
+  function coverFontStack() { return FONT_STACKS[state.coverFont] || FONT_STACKS.hei; }
 
   // 资产（用户放进 assets/ 后自动生效）
   let logoDataUri = null;     // assets/logo-mark.(svg|png) → 按主题色重新上色
@@ -36,7 +45,7 @@
       default: return null;
     }
   }
-  function freshState() { return { platform: 'xhs', brandLabel: '签证信息', footerNote: DEFAULT_FOOTER, pages: [defaultPage('cover')] }; }
+  function freshState() { return { platform: 'xhs', brandLabel: '签证信息', footerNote: DEFAULT_FOOTER, coverFont: 'hei', pages: [defaultPage('cover')] }; }
   function loadState() {
     try {
       const s = JSON.parse(localStorage.getItem(LS_KEY));
@@ -44,6 +53,7 @@
       if (s.platform !== 'xhs' && s.platform !== 'xls') s.platform = 'xhs';
       if (typeof s.brandLabel !== 'string') s.brandLabel = '签证信息';
       if (typeof s.footerNote !== 'string') s.footerNote = DEFAULT_FOOTER;
+      if (!FONT_STACKS[s.coverFont]) s.coverFont = 'hei';
       return s;
     } catch { return freshState(); }
   }
@@ -72,7 +82,7 @@
     const footer = (!isCover && state.footerNote) ? `<div class="card-footer">${esc(state.footerNote)}</div>` : '';
     return `<div class="frame">${masthead()}<div class="content-box">${templateHTML(page)}</div>${footer}</div>`;
   }
-  function buildCard(page) { const c = mk('div', 'page-card'); c.innerHTML = buildCardHTML(page); return c; }
+  function buildCard(page) { const c = mk('div', 'page-card'); c.style.setProperty('--cover-font', coverFontStack()); c.innerHTML = buildCardHTML(page); return c; }
 
   // ---------------- 模板 HTML（<img/> 自闭合，导出走 XML 解析） ----------------
   function templateHTML(p) {
@@ -351,7 +361,7 @@
   }
   async function pageToPng(page) {
     const css = exportFontFace() + '\n' + (await getCSS());
-    const inner = `<div class="page-card" data-platform="${state.platform}" style="width:${CARD_W}px;height:${CARD_H}px;transform:none;">${buildCardHTML(page)}</div>`;
+    const inner = `<div class="page-card" data-platform="${state.platform}" style="width:${CARD_W}px;height:${CARD_H}px;transform:none;--cover-font:${coverFontStack()};">${buildCardHTML(page)}</div>`;
     const svg =
       `<svg xmlns="http://www.w3.org/2000/svg" width="${CARD_W}" height="${CARD_H}">` +
       `<foreignObject x="0" y="0" width="${CARD_W}" height="${CARD_H}">` +
@@ -426,6 +436,7 @@
     $('#btn-ai-fill').addEventListener('click', onFill);
     const lbl = $('#set-label'); lbl.value = state.brandLabel; lbl.addEventListener('input', () => { state.brandLabel = lbl.value; touch(); });
     const ft = $('#set-footer'); ft.value = state.footerNote; ft.addEventListener('input', () => { state.footerNote = ft.value; touch(); });
+    const fontSel = $('#set-font'); fontSel.value = state.coverFont; fontSel.addEventListener('change', () => { state.coverFont = fontSel.value; touch(); });
   }
   function init() {
     document.documentElement.dataset.platform = state.platform;
