@@ -1,0 +1,56 @@
+/* 两套平台主题。切换 <html data-platform> 即整体换风格。
+   后续会按用户提供的小红书/小绿书参考图精调这些 token。 */
+
+:root {
+  /* 卡片设计尺寸（3:4）。导出时按 pixelRatio=2 放大到 1080x1440 */
+  --card-w: 540px;
+  --card-h: 720px;
+
+  --font-body: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+  --font-display: var(--font-body);
+}
+
+/* ---------- 小红书：暖红 / 奶白 ----------
+   用属性选择器（而非 :root[...]）以便导出时的离屏 wrapper 也能拿到变量 */
+[data-platform="xhs"] {
+  --ui-accent: #ff2e4d;
+
+  --page-bg: #fff5f3;
+  --page-bg-2: #ffe3df;
+  --card-radius: 28px;
+
+  --ink: #2b1d1a;
+  --ink-soft: #8a6f69;
+  --accent: #ff2e4d;
+  --accent-soft: #ffd9d3;
+  --on-accent: #ffffff;
+
+  --cover-bg: linear-gradient(160deg, #ff5a6e 0%, #ff2e4d 60%, #e21f3c 100%);
+  --cover-ink: #ffffff;
+  --cover-sub: rgba(255, 255, 255, 0.86);
+
+  --chip-bg: #fff0ee;
+  --divider: rgba(255, 46, 77, 0.18);
+}
+
+/* ---------- 小绿书：清新绿 / 米白 ---------- */
+[data-platform="xls"] {
+  --ui-accent: #16a06a;
+
+  --page-bg: #f1faf3;
+  --page-bg-2: #d9f1e2;
+  --card-radius: 28px;
+
+  --ink: #14241c;
+  --ink-soft: #5f8071;
+  --accent: #16a06a;
+  --accent-soft: #c9efd8;
+  --on-accent: #ffffff;
+
+  --cover-bg: linear-gradient(160deg, #34c47d 0%, #16a06a 60%, #0c7d50 100%);
+  --cover-ink: #ffffff;
+  --cover-sub: rgba(255, 255, 255, 0.88);
+
+  --chip-bg: #e8f7ee;
+  --divider: rgba(22, 160, 106, 0.18);
+}

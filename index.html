@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-platform="xhs">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>红绿书出图器</title>
+  <link rel="stylesheet" href="themes.css" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-dot"></span>
+      <span class="brand-name">红绿书出图器</span>
+    </div>
+
+    <div class="platform-switch" role="tablist" aria-label="平台">
+      <button class="plat-btn is-active" data-platform="xhs" role="tab">小红书</button>
+      <button class="plat-btn" data-platform="xls" role="tab">小绿书</button>
+    </div>
+
+    <div class="topbar-actions">
+      <button id="btn-download-all" class="btn btn-primary">下载全部 (zip)</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <!-- 左：编辑区 -->
+    <section class="editor" aria-label="编辑区">
+      <!-- AI 整理 -->
+      <details class="panel ai-panel" open>
+        <summary>用 Claude 整理零散信息</summary>
+        <div class="panel-body">
+          <label class="field-label" for="ai-raw">① 粘贴官网原文</label>
+          <textarea id="ai-raw" class="ta" rows="5"
+            placeholder="把学校官网那段零散的信息粘进来，比如：南京理工大学春季一月份开课的项目……"></textarea>
+
+          <div class="btn-row">
+            <button id="btn-ai-open" class="btn">让 Claude 整理 →</button>
+            <button id="btn-ai-copy" class="btn btn-ghost">复制提示词</button>
+          </div>
+          <p class="hint">点「让 Claude 整理」会打开 Claude App 并带上提示词；打不开就用「复制提示词」，自己去 Claude 里粘贴。</p>
+
+          <label class="field-label" for="ai-result">② 把 Claude 返回的 JSON 粘回来</label>
+          <textarea id="ai-result" class="ta" rows="5"
+            placeholder='{ "pages": [ ... ] }'></textarea>
+          <div class="btn-row">
+            <button id="btn-ai-fill" class="btn btn-primary">填入页面</button>
+          </div>
+        </div>
+      </details>
+
+      <!-- 加页 -->
+      <div class="panel">
+        <div class="add-row">
+          <span class="field-label">添加页面：</span>
+          <button class="btn btn-sm" data-add="cover">+ 封面</button>
+          <button class="btn btn-sm" data-add="list">+ 列表</button>
+          <button class="btn btn-sm" data-add="detail">+ 详情</button>
+          <button class="btn btn-sm" data-add="policy">+ 政策</button>
+          <button class="btn btn-sm" data-add="text">+ 文本</button>
+        </div>
+      </div>
+
+      <!-- 页面编辑列表 -->
+      <div id="page-editors" class="page-editors"></div>
+    </section>
+
+    <!-- 右：预览区 -->
+    <section class="preview" aria-label="预览区">
+      <div id="preview-list" class="preview-list"></div>
+      <p id="preview-empty" class="preview-empty">还没有页面。左边点「+ 封面」或用 Claude 整理来开始。</p>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
