@@ -45,7 +45,7 @@
       default: return null;
     }
   }
-  function freshState() { return { platform: 'xhs', brandLabel: '签证信息', footerNote: DEFAULT_FOOTER, coverFont: 'hei', pages: [defaultPage('cover')] }; }
+  function freshState() { return { platform: 'xhs', brandLabel: '签证信息', footerNote: DEFAULT_FOOTER, coverFont: 'hei', logoData: null, logoRecolor: true, memojiData: null, pages: [defaultPage('cover')] }; }
   function loadState() {
     try {
       const s = JSON.parse(localStorage.getItem(LS_KEY));
@@ -54,17 +54,24 @@
       if (typeof s.brandLabel !== 'string') s.brandLabel = '签证信息';
       if (typeof s.footerNote !== 'string') s.footerNote = DEFAULT_FOOTER;
       if (!FONT_STACKS[s.coverFont]) s.coverFont = 'hei';
+      if (typeof s.logoData !== 'string') s.logoData = null;
+      if (typeof s.logoRecolor !== 'boolean') s.logoRecolor = true;
+      if (typeof s.memojiData !== 'string') s.memojiData = null;
       return s;
     } catch { return freshState(); }
   }
   let state = loadState();
-  function save() { try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch {} }
+  function save() { try { localStorage.setItem(LS_KEY, JSON.stringify(state)); return true; } catch { return false; } }
   function touch() { save(); renderPreview(); }
   function restructure() { save(); renderEditors(); renderPreview(); }
 
   // ---------------- 报头 / 卡片骨架 ----------------
   function logoMarkup() {
-    if (logoDataUri) return `<div class="logo-mask" style="--logo-src:url('${logoDataUri}')"></div>`;
+    const src = state.logoData || logoDataUri;
+    if (src) {
+      if (state.logoRecolor !== false) return `<div class="logo-mask" style="--logo-src:url('${src}')"></div>`;
+      return `<img class="logo-img-plain" src="${src}" alt="logo" />`;
+    }
     return `<div class="logo-text">EduLight<span class="spark"></span></div>`;
   }
   function masthead() {
@@ -90,7 +97,7 @@
       case 'cover':
         return `<div class="tpl-cover">
             <h1 class="cover-title">${esc(p.title)}</h1>
-            ${(state.platform === 'xhs' && p.showMemoji !== false && memojiDataUri) ? `<img class="cover-memoji" src="${memojiDataUri}" alt="" />` : ''}
+            ${(state.platform === 'xhs' && p.showMemoji !== false && (state.memojiData || memojiDataUri)) ? `<img class="cover-memoji" src="${state.memojiData || memojiDataUri}" alt="" />` : ''}
           </div>`;
       case 'bilingual':
         return `<div class="tpl-bilingual">
@@ -437,6 +444,22 @@
     const lbl = $('#set-label'); lbl.value = state.brandLabel; lbl.addEventListener('input', () => { state.brandLabel = lbl.value; touch(); });
     const ft = $('#set-footer'); ft.value = state.footerNote; ft.addEventListener('input', () => { state.footerNote = ft.value; touch(); });
     const fontSel = $('#set-font'); fontSel.value = state.coverFont; fontSel.addEventListener('change', () => { state.coverFont = fontSel.value; touch(); });
+
+    const recolor = $('#logo-recolor'); recolor.checked = state.logoRecolor !== false; recolor.addEventListener('change', () => { state.logoRecolor = recolor.checked; touch(); });
+    bindUpload('#up-logo', (data) => { state.logoData = data; if (!save()) flash('图太大，本地存不下；本次有效，刷新会丢'); renderPreview(); flash('logo 已更新'); });
+    $('#clr-logo').addEventListener('click', () => { state.logoData = null; touch(); flash('已清除 logo'); });
+    bindUpload('#up-memoji', (data) => { state.memojiData = data; if (!save()) flash('图太大，本地存不下；本次有效，刷新会丢'); renderPreview(); flash('人物已更新'); });
+    $('#clr-memoji').addEventListener('click', () => { state.memojiData = null; touch(); flash('已清除人物'); });
+  }
+  function bindUpload(sel, onData) {
+    const inp = $(sel);
+    inp.addEventListener('change', async () => {
+      const f = inp.files && inp.files[0]; inp.value = '';
+      if (!f) return;
+      if (!/^image\//.test(f.type)) { alert('请选择图片文件'); return; }
+      const data = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = rej; fr.readAsDataURL(f); });
+      onData(data);
+    });
   }
   function init() {
     document.documentElement.dataset.platform = state.platform;

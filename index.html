@@ -43,6 +43,19 @@
             <option value="song">宋体</option>
             <option value="custom">自定义（放 assets/fonts/display.ttf 后选这个）</option>
           </select>
+
+          <label class="field-label">Logo（上传图片，透明底最佳）</label>
+          <div class="btn-row">
+            <label class="btn btn-sm">上传 logo<input id="up-logo" type="file" accept="image/*" hidden /></label>
+            <button id="clr-logo" class="btn btn-sm btn-ghost">清除</button>
+          </div>
+          <label class="check-row"><input id="logo-recolor" type="checkbox" /> <span>logo 按主题色重新上色（透明底单色 logo 选这个）</span></label>
+
+          <label class="field-label">小红书封面人物（上传图片，透明底最佳）</label>
+          <div class="btn-row">
+            <label class="btn btn-sm">上传人物<input id="up-memoji" type="file" accept="image/*" hidden /></label>
+            <button id="clr-memoji" class="btn btn-sm btn-ghost">清除</button>
+          </div>
         </div>
       </details>
 
