@@ -1,121 +1,124 @@
 (function () {
   'use strict';
 
-  const LS_KEY = 'redgreen:v1';
+  const LS_KEY = 'redgreen:v2';
   const CARD_W = 540, CARD_H = 720, EXPORT_SCALE = 2;
-  const DISP_W = 250; // 预览卡显示宽度（设计 540 → 缩放显示）
-  const TYPE_LABEL = { cover: '封面', list: '列表', detail: '详情', policy: '政策', text: '文本' };
+  const DISP_W = 250;
+  const TYPE_LABEL = { cover: '封面', bilingual: '双语分析', table: '排名表格', list: '列表', policy: '政策', text: '文本' };
+  const DEFAULT_FOOTER = '备注：本文所提供的信息均来源于大学官网。申请时请务必以学校官网公布的最新信息为准。';
 
-  let logoDataUri = null;
+  // 资产（用户放进 assets/ 后自动生效）
+  let logoDataUri = null;     // assets/logo-mark.(svg|png) → 按主题色重新上色
+  let memojiDataUri = null;   // assets/memoji.(png|svg) → 小红书封面人物
+  let displayFontB64 = null;  // assets/fonts/display.(woff2|ttf) → 封面方块字（导出时内联）
+  let displayFontMime = 'font/woff2';
   let cssCache = null;
 
   // ---------------- 工具 ----------------
   const $ = (s) => document.querySelector(s);
-  function mk(tag, cls, attrs) {
-    const e = document.createElement(tag);
-    if (cls) e.className = cls;
-    if (attrs) for (const k in attrs) e.setAttribute(k, attrs[k]);
-    return e;
-  }
+  function mk(tag, cls, attrs) { const e = document.createElement(tag); if (cls) e.className = cls; if (attrs) for (const k in attrs) e.setAttribute(k, attrs[k]); return e; }
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-  const nextFrame = () => new Promise((r) => requestAnimationFrame(() => r()));
   function str(v, d) { return v == null ? d : String(v); }
   function toStrArr(v, d) { return Array.isArray(v) ? v.map((x) => String(x)) : d; }
-  function esc(s) {
-    return String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-  }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
   function uid() { return 'p' + Math.random().toString(36).slice(2, 9); }
 
   // ---------------- 状态 ----------------
   function defaultPage(type) {
     const base = { id: uid(), type };
     switch (type) {
-      case 'cover': return Object.assign(base, { title: '南京理工大学\n春季开课', subtitle: '2026 年 1 月', footer: '' });
+      case 'cover': return Object.assign(base, { title: '香港大学\n2026 FALL\n工学院新增', showMemoji: true });
+      case 'bilingual': return Object.assign(base, { heading: '拒签原因一：你没有证明这门课非去澳洲读不可', en: '', cn: '', actionTitle: '要怎么做?', steps: ['', ''] });
+      case 'table': return Object.assign(base, { title: '录取数据一览', columns: ['专业', '中国学生录取', '全部录取', '申请要求'], rows: [['', '', '', ''], ['', '', '', '']] });
       case 'list': return Object.assign(base, { heading: '本期项目一览', items: [{ name: '项目名称', note: '一句话说明' }] });
-      case 'detail': return Object.assign(base, { project: '项目名称', requirements: ['要求一', '要求二'] });
       case 'policy': return Object.assign(base, { title: '政策标题', points: ['要点一'] });
       case 'text': return Object.assign(base, { title: '标题', body: '正文内容……' });
       default: return null;
     }
   }
-
-  function freshState() { return { platform: 'xhs', pages: [defaultPage('cover')] }; }
-
+  function freshState() { return { platform: 'xhs', brandLabel: '签证信息', footerNote: DEFAULT_FOOTER, pages: [defaultPage('cover')] }; }
   function loadState() {
     try {
       const s = JSON.parse(localStorage.getItem(LS_KEY));
       if (!s || !Array.isArray(s.pages)) return freshState();
       if (s.platform !== 'xhs' && s.platform !== 'xls') s.platform = 'xhs';
+      if (typeof s.brandLabel !== 'string') s.brandLabel = '签证信息';
+      if (typeof s.footerNote !== 'string') s.footerNote = DEFAULT_FOOTER;
       return s;
     } catch { return freshState(); }
   }
-
   let state = loadState();
   function save() { try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch {} }
-
-  // 文本改动：存盘 + 刷新预览（不重建编辑器，保持输入焦点）
   function touch() { save(); renderPreview(); }
-  // 结构改动：存盘 + 重建编辑器 + 刷新预览
   function restructure() { save(); renderEditors(); renderPreview(); }
 
-  // ---------------- 模板 HTML（注意 <img/> 自闭合，导出走 XML 解析） ----------------
-  function logoHTML() {
-    if (logoDataUri) return `<img class="logo-img" src="${logoDataUri}" alt="logo" />`;
-    return `<span class="logo-fallback">LOGO</span>`;
+  // ---------------- 报头 / 卡片骨架 ----------------
+  function logoMarkup() {
+    if (logoDataUri) return `<div class="logo-mask" style="--logo-src:url('${logoDataUri}')"></div>`;
+    return `<div class="logo-text">EduLight<span class="spark"></span></div>`;
   }
+  function masthead() {
+    if (state.platform === 'xhs') {
+      return `<div class="masthead mh-xhs">
+          <div class="mh-left">${logoMarkup()}<div class="mh-bars"><span></span><span></span></div></div>
+          <div class="mh-right"><div class="mh-line"></div><div class="mh-slogan">LIGHT UP THE FUTURE!</div></div>
+        </div>`;
+    }
+    return `<div class="masthead mh-xls">${logoMarkup()}${state.brandLabel ? `<div class="brand-label">${esc(state.brandLabel)}</div>` : ''}</div>`;
+  }
+
+  function buildCardHTML(page) {
+    const isCover = page.type === 'cover';
+    const footer = (!isCover && state.footerNote) ? `<div class="card-footer">${esc(state.footerNote)}</div>` : '';
+    return `<div class="frame">${masthead()}<div class="content-box">${templateHTML(page)}</div>${footer}</div>`;
+  }
+  function buildCard(page) { const c = mk('div', 'page-card'); c.innerHTML = buildCardHTML(page); return c; }
+
+  // ---------------- 模板 HTML（<img/> 自闭合，导出走 XML 解析） ----------------
   function templateHTML(p) {
     switch (p.type) {
       case 'cover':
         return `<div class="tpl-cover">
-            <div class="cover-logo">${logoHTML()}</div>
-            <div class="cover-spacer"></div>
             <h1 class="cover-title">${esc(p.title)}</h1>
-            ${p.subtitle ? `<div class="cover-sub">${esc(p.subtitle)}</div>` : ''}
-            ${p.footer ? `<div class="cover-footer">${esc(p.footer)}</div>` : ''}
+            ${(state.platform === 'xhs' && p.showMemoji !== false && memojiDataUri) ? `<img class="cover-memoji" src="${memojiDataUri}" alt="" />` : ''}
+          </div>`;
+      case 'bilingual':
+        return `<div class="tpl-bilingual">
+            <h2 class="sec-heading">${esc(p.heading)}</h2>
+            ${p.en ? `<p class="bi-en">${esc(p.en)}</p>` : ''}
+            ${p.cn ? `<p class="bi-cn">${esc(p.cn)}</p>` : ''}
+            ${(p.steps && p.steps.filter(Boolean).length) ? `<h3 class="sec-heading action">${esc(p.actionTitle || '要怎么做?')}</h3>
+              <ol class="bi-steps">${p.steps.filter(Boolean).map((s) => `<li>${esc(s)}</li>`).join('')}</ol>` : ''}
+          </div>`;
+      case 'table':
+        return `<div class="tpl-table">
+            ${p.title ? `<h2 class="sec-heading">${esc(p.title)}</h2>` : ''}
+            <table class="tbl">
+              ${(p.columns && p.columns.length) ? `<thead><tr>${p.columns.map((c) => `<th>${esc(c)}</th>`).join('')}</tr></thead>` : ''}
+              <tbody>${(p.rows || []).map((r) => `<tr>${(r || []).map((c) => `<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody>
+            </table>
           </div>`;
       case 'list':
-        return `<div class="tpl-list pad">
+        return `<div class="tpl-list">
             <span class="kicker">${esc(p.heading || '项目一览')}</span>
             <div class="list-items">
               ${(p.items || []).map((it, i) => `
                 <div class="list-item">
                   <div class="li-num">${i + 1}</div>
-                  <div class="li-text">
-                    <div class="li-name">${esc(it.name)}</div>
-                    ${it.note ? `<div class="li-note">${esc(it.note)}</div>` : ''}
-                  </div>
+                  <div class="li-text"><div class="li-name">${esc(it.name)}</div>${it.note ? `<div class="li-note">${esc(it.note)}</div>` : ''}</div>
                 </div>`).join('')}
             </div>
           </div>`;
-      case 'detail':
-        return `<div class="tpl-detail pad">
-            <span class="kicker">项目详情</span>
-            <h2 class="big-title">${esc(p.project)}</h2>
-            <div class="detail-reqs">
-              ${(p.requirements || []).map((r) => `<div class="req"><span class="tick">✓</span><span>${esc(r)}</span></div>`).join('')}
-            </div>
-          </div>`;
       case 'policy':
-        return `<div class="tpl-policy pad">
+        return `<div class="tpl-policy">
             <span class="kicker">政策更新</span>
             <h2 class="big-title">${esc(p.title)}</h2>
-            <div class="policy-points">
-              ${(p.points || []).map((pt) => `<div class="pt">${esc(pt)}</div>`).join('')}
-            </div>
+            <div class="policy-points">${(p.points || []).map((pt) => `<div class="pt">${esc(pt)}</div>`).join('')}</div>
           </div>`;
       case 'text':
-        return `<div class="tpl-text pad">
-            <h2 class="big-title">${esc(p.title)}</h2>
-            <div class="text-body">${esc(p.body)}</div>
-          </div>`;
+        return `<div class="tpl-text"><h2 class="big-title">${esc(p.title)}</h2><div class="text-body">${esc(p.body)}</div></div>`;
       default: return '';
     }
-  }
-
-  function buildCard(page) {
-    const card = mk('div', 'page-card');
-    card.innerHTML = templateHTML(page);
-    return card;
   }
 
   // ---------------- 预览 ----------------
@@ -127,20 +130,11 @@
       const frame = mk('div', 'page-frame');
       frame.style.width = DISP_W + 'px';
       frame.style.height = (CARD_H * scale) + 'px';
-
       const card = buildCard(page);
       card.style.transform = `scale(${scale})`;
       frame.appendChild(card);
-
-      const num = mk('div', 'page-pagenum');
-      num.textContent = (i + 1) + '/' + state.pages.length;
-      frame.appendChild(num);
-
-      const dl = mk('button', 'btn btn-sm dl-this');
-      dl.textContent = '下载';
-      dl.addEventListener('click', () => exportPage(i));
-      frame.appendChild(dl);
-
+      const num = mk('div', 'page-pagenum'); num.textContent = (i + 1) + '/' + state.pages.length; frame.appendChild(num);
+      const dl = mk('button', 'btn btn-sm dl-this'); dl.textContent = '下载'; dl.addEventListener('click', () => exportPage(i)); frame.appendChild(dl);
       list.appendChild(frame);
     });
     $('#preview-empty').style.display = state.pages.length ? 'none' : 'block';
@@ -149,87 +143,107 @@
   // ---------------- 编辑器 ----------------
   function label(t) { const l = mk('span', 'field-label'); l.textContent = t; return l; }
   function fieldText(labelText, value, on, placeholder) {
-    const wrap = mk('div');
-    wrap.appendChild(label(labelText));
-    const inp = mk('input', 'inp', { type: 'text' });
-    inp.value = value || '';
-    if (placeholder) inp.placeholder = placeholder;
-    inp.addEventListener('input', () => on(inp.value));
-    wrap.appendChild(inp);
-    return wrap;
+    const wrap = mk('div'); wrap.appendChild(label(labelText));
+    const inp = mk('input', 'inp', { type: 'text' }); inp.value = value || ''; if (placeholder) inp.placeholder = placeholder;
+    inp.addEventListener('input', () => on(inp.value)); wrap.appendChild(inp); return wrap;
   }
   function fieldArea(labelText, value, on, rows) {
-    const wrap = mk('div');
-    wrap.appendChild(label(labelText));
-    const ta = mk('textarea', 'ta');
-    ta.rows = rows || 3;
-    ta.value = value || '';
-    ta.addEventListener('input', () => on(ta.value));
-    wrap.appendChild(ta);
-    return wrap;
+    const wrap = mk('div'); wrap.appendChild(label(labelText));
+    const ta = mk('textarea', 'ta'); ta.rows = rows || 3; ta.value = value || '';
+    ta.addEventListener('input', () => on(ta.value)); wrap.appendChild(ta); return wrap;
   }
-
-  function listItemsEditor(page) {
-    const box = mk('div');
-    page.items.forEach((it, idx) => {
-      const row = mk('div', 'repeat-item');
-      const name = mk('input', 'inp', { type: 'text' });
-      name.value = it.name || ''; name.placeholder = '项目名';
-      name.addEventListener('input', () => { it.name = name.value; touch(); });
-      const note = mk('input', 'inp', { type: 'text' });
-      note.value = it.note || ''; note.placeholder = '一句话说明';
-      note.addEventListener('input', () => { it.note = note.value; touch(); });
-      const del = mk('button', 'icon-btn'); del.textContent = '✕'; del.title = '删除这条';
-      del.addEventListener('click', () => { page.items.splice(idx, 1); restructure(); });
-      row.append(name, note, del);
-      box.appendChild(row);
-    });
-    const add = mk('button', 'btn btn-sm repeat-add'); add.textContent = '+ 加一条';
-    add.addEventListener('click', () => { page.items.push({ name: '', note: '' }); restructure(); });
-    box.appendChild(add);
-    return box;
-  }
-
   function stringListEditor(arr, placeholder) {
     const box = mk('div');
     arr.forEach((val, idx) => {
       const row = mk('div', 'repeat-item');
-      const inp = mk('input', 'inp', { type: 'text' });
-      inp.value = val || ''; inp.placeholder = placeholder;
+      const inp = mk('input', 'inp', { type: 'text' }); inp.value = val || ''; inp.placeholder = placeholder;
       inp.addEventListener('input', () => { arr[idx] = inp.value; touch(); });
-      const del = mk('button', 'icon-btn'); del.textContent = '✕'; del.title = '删除这条';
+      const del = mk('button', 'icon-btn'); del.textContent = '✕'; del.title = '删除';
       del.addEventListener('click', () => { arr.splice(idx, 1); restructure(); });
-      row.append(inp, del);
-      box.appendChild(row);
+      row.append(inp, del); box.appendChild(row);
     });
     const add = mk('button', 'btn btn-sm repeat-add'); add.textContent = '+ 加一条';
-    add.addEventListener('click', () => { arr.push(''); restructure(); });
-    box.appendChild(add);
+    add.addEventListener('click', () => { arr.push(''); restructure(); }); box.appendChild(add); return box;
+  }
+  function listItemsEditor(page) {
+    const box = mk('div');
+    page.items.forEach((it, idx) => {
+      const row = mk('div', 'repeat-item');
+      const name = mk('input', 'inp', { type: 'text' }); name.value = it.name || ''; name.placeholder = '项目名';
+      name.addEventListener('input', () => { it.name = name.value; touch(); });
+      const note = mk('input', 'inp', { type: 'text' }); note.value = it.note || ''; note.placeholder = '一句话说明';
+      note.addEventListener('input', () => { it.note = note.value; touch(); });
+      const del = mk('button', 'icon-btn'); del.textContent = '✕'; del.addEventListener('click', () => { page.items.splice(idx, 1); restructure(); });
+      row.append(name, note, del); box.appendChild(row);
+    });
+    const add = mk('button', 'btn btn-sm repeat-add'); add.textContent = '+ 加一条';
+    add.addEventListener('click', () => { page.items.push({ name: '', note: '' }); restructure(); }); box.appendChild(add); return box;
+  }
+  function tableEditor(page) {
+    const box = mk('div');
+    box.appendChild(label('列标题'));
+    const cols = mk('div');
+    page.columns.forEach((c, ci) => {
+      const row = mk('div', 'repeat-item');
+      const inp = mk('input', 'inp', { type: 'text' }); inp.value = c || ''; inp.placeholder = '列名';
+      inp.addEventListener('input', () => { page.columns[ci] = inp.value; touch(); });
+      const del = mk('button', 'icon-btn'); del.textContent = '✕'; del.title = '删除此列';
+      del.addEventListener('click', () => { page.columns.splice(ci, 1); page.rows.forEach((r) => r.splice(ci, 1)); restructure(); });
+      row.append(inp, del); cols.appendChild(row);
+    });
+    const addCol = mk('button', 'btn btn-sm repeat-add'); addCol.textContent = '+ 加一列';
+    addCol.addEventListener('click', () => { page.columns.push(''); page.rows.forEach((r) => r.push('')); restructure(); });
+    cols.appendChild(addCol); box.appendChild(cols);
+
+    box.appendChild(label('表格行'));
+    const rows = mk('div');
+    page.rows.forEach((r, ri) => {
+      const rowEl = mk('div', 'row-cells');
+      page.columns.forEach((_, ci) => {
+        const inp = mk('input', 'inp', { type: 'text' }); inp.value = r[ci] || ''; inp.placeholder = page.columns[ci] || ('列' + (ci + 1));
+        inp.addEventListener('input', () => { r[ci] = inp.value; touch(); });
+        rowEl.appendChild(inp);
+      });
+      const del = mk('button', 'icon-btn'); del.textContent = '✕'; del.title = '删除此行';
+      del.addEventListener('click', () => { page.rows.splice(ri, 1); restructure(); });
+      rowEl.appendChild(del); rows.appendChild(rowEl);
+    });
+    const addRow = mk('button', 'btn btn-sm repeat-add'); addRow.textContent = '+ 加一行';
+    addRow.addEventListener('click', () => { page.rows.push(page.columns.map(() => '')); restructure(); });
+    rows.appendChild(addRow); box.appendChild(rows);
     return box;
   }
 
   function editorBody(page) {
     const b = mk('div', 'pe-body');
     switch (page.type) {
-      case 'cover':
-        b.appendChild(fieldArea('大标题（换行用回车）', page.title, (v) => { page.title = v; touch(); }, 2));
-        b.appendChild(fieldText('副标题 / 日期', page.subtitle, (v) => { page.subtitle = v; touch(); }));
-        b.appendChild(fieldText('脚注（可空）', page.footer, (v) => { page.footer = v; touch(); }));
+      case 'cover': {
+        b.appendChild(fieldArea('大标题（换行用回车，每行别太长）', page.title, (v) => { page.title = v; touch(); }, 3));
+        const cr = mk('label', 'check-row');
+        const cb = mk('input', '', { type: 'checkbox' }); cb.checked = page.showMemoji !== false;
+        cb.addEventListener('change', () => { page.showMemoji = cb.checked; touch(); });
+        const sp = mk('span'); sp.textContent = '显示 3D 人物（仅小红书封面，需放 assets/memoji.png）';
+        cr.append(cb, sp); b.appendChild(cr); break;
+      }
+      case 'bilingual':
+        b.appendChild(fieldText('小标题（红/藏蓝）', page.heading, (v) => { page.heading = v; touch(); }));
+        b.appendChild(fieldArea('英文加粗段（可空）', page.en, (v) => { page.en = v; touch(); }, 4));
+        b.appendChild(fieldArea('中文翻译 / 正文', page.cn, (v) => { page.cn = v; touch(); }, 4));
+        b.appendChild(fieldText('行动小标题', page.actionTitle, (v) => { page.actionTitle = v; touch(); }, '要怎么做?'));
+        b.appendChild(label('步骤'));
+        b.appendChild(stringListEditor(page.steps, '一条步骤'));
+        break;
+      case 'table':
+        b.appendChild(fieldText('表格标题（可空）', page.title, (v) => { page.title = v; touch(); }));
+        b.appendChild(tableEditor(page));
         break;
       case 'list':
         b.appendChild(fieldText('小标题', page.heading, (v) => { page.heading = v; touch(); }));
-        b.appendChild(label('条目'));
-        b.appendChild(listItemsEditor(page));
-        break;
-      case 'detail':
-        b.appendChild(fieldText('项目名', page.project, (v) => { page.project = v; touch(); }));
-        b.appendChild(label('要求清单'));
-        b.appendChild(stringListEditor(page.requirements, '一条要求'));
+        b.appendChild(label('条目')); b.appendChild(listItemsEditor(page));
         break;
       case 'policy':
         b.appendChild(fieldText('政策标题', page.title, (v) => { page.title = v; touch(); }));
-        b.appendChild(label('要点'));
-        b.appendChild(stringListEditor(page.points, '一条要点'));
+        b.appendChild(label('要点')); b.appendChild(stringListEditor(page.points, '一条要点'));
         break;
       case 'text':
         b.appendChild(fieldText('标题', page.title, (v) => { page.title = v; touch(); }));
@@ -238,90 +252,59 @@
     }
     return b;
   }
-
-  function move(i, dir) {
-    const j = i + dir;
-    if (j < 0 || j >= state.pages.length) return;
-    const t = state.pages[i]; state.pages[i] = state.pages[j]; state.pages[j] = t;
-    restructure();
-  }
-
+  function move(i, dir) { const j = i + dir; if (j < 0 || j >= state.pages.length) return; const t = state.pages[i]; state.pages[i] = state.pages[j]; state.pages[j] = t; restructure(); }
   function renderEditors() {
-    const root = $('#page-editors');
-    root.innerHTML = '';
+    const root = $('#page-editors'); root.innerHTML = '';
     state.pages.forEach((page, i) => {
       const card = mk('div', 'pe-card');
       const head = mk('div', 'pe-head');
-      const type = mk('span', 'pe-type');
-      type.innerHTML = `<span class="dot"></span>${TYPE_LABEL[page.type] || page.type}`;
+      const type = mk('span', 'pe-type'); type.innerHTML = `<span class="dot"></span>${TYPE_LABEL[page.type] || page.type}`;
       const idx = mk('span', 'pe-idx'); idx.textContent = '第 ' + (i + 1) + ' 页';
       const sp = mk('span', 'spacer');
-      const up = mk('button', 'icon-btn'); up.textContent = '↑'; up.title = '上移'; up.disabled = i === 0;
-      up.addEventListener('click', () => move(i, -1));
-      const dn = mk('button', 'icon-btn'); dn.textContent = '↓'; dn.title = '下移'; dn.disabled = i === state.pages.length - 1;
-      dn.addEventListener('click', () => move(i, 1));
+      const up = mk('button', 'icon-btn'); up.textContent = '↑'; up.title = '上移'; up.disabled = i === 0; up.addEventListener('click', () => move(i, -1));
+      const dn = mk('button', 'icon-btn'); dn.textContent = '↓'; dn.title = '下移'; dn.disabled = i === state.pages.length - 1; dn.addEventListener('click', () => move(i, 1));
       const del = mk('button', 'icon-btn btn-danger'); del.textContent = '删除';
-      del.addEventListener('click', () => {
-        if (confirm('删除第 ' + (i + 1) + ' 页？')) { state.pages.splice(i, 1); restructure(); }
-      });
+      del.addEventListener('click', () => { if (confirm('删除第 ' + (i + 1) + ' 页？')) { state.pages.splice(i, 1); restructure(); } });
       head.append(type, idx, sp, up, dn, del);
-      card.appendChild(head);
-      card.appendChild(editorBody(page));
-      root.appendChild(card);
+      card.appendChild(head); card.appendChild(editorBody(page)); root.appendChild(card);
     });
   }
 
   // ---------------- AI（深链接 + 复制提示词） ----------------
   function buildPrompt(raw) {
     return [
-      '你是中文图文排版助手。请把下面的学校信息整理成多页图文卡片的结构化数据。',
+      '你是中文留学图文排版助手。请把下面的学校信息整理成多页图文卡片的结构化数据。',
       '严格要求：只输出一个 JSON 对象，不要任何解释文字，不要 markdown 代码块围栏。',
-      'JSON 结构如下（pages 是有序数组，按需选用页面类型，可重复）：',
+      'JSON 结构（pages 是有序数组，按需选用页面类型，可重复）：',
       '{',
       '  "pages": [',
-      '    {"type":"cover","title":"封面大标题(可用\\n换行)","subtitle":"副标题或日期","footer":"可选脚注"},',
+      '    {"type":"cover","title":"封面大标题(可用\\n换行,每行尽量≤5字)"},',
+      '    {"type":"bilingual","heading":"红色小标题","en":"英文加粗段(可空)","cn":"中文翻译/说明","actionTitle":"要怎么做?","steps":["步骤一","步骤二"]},',
+      '    {"type":"table","title":"表格标题","columns":["列1","列2","列3"],"rows":[["a","b","c"],["d","e","f"]]},',
       '    {"type":"list","heading":"小标题","items":[{"name":"项目名","note":"一句话说明"}]},',
-      '    {"type":"detail","project":"项目名","requirements":["要求一","要求二"]},',
       '    {"type":"policy","title":"政策标题","points":["要点一","要点二"]},',
       '    {"type":"text","title":"标题","body":"正文"}',
       '  ]',
       '}',
-      '整理规则：第一页一般是 cover；若有多个项目，第二页用 list 概览，随后每个项目各一页 detail；',
-      '内容必须基于下面原文，不要编造，不要遗漏关键信息（时间、地点、报名方式、要求）。',
-      '原文：',
-      '"""',
-      raw,
-      '"""',
+      '整理规则：第一页一般是 cover；多个项目用 list 概览，再每个项目各一页 detail/text；',
+      '签证/拒签类用 bilingual；录取数据/排名等用 table；',
+      '内容必须基于下面原文，不要编造，不要遗漏关键信息（时间、地点、报名方式、要求、学费）。',
+      '原文：', '"""', raw, '"""',
     ].join('\n');
   }
-
-  function copyText(t) {
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        return navigator.clipboard.writeText(t).then(() => true).catch(() => false);
-      }
-    } catch {}
-    return Promise.resolve(false);
-  }
-
+  function copyText(t) { try { if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(t).then(() => true).catch(() => false); } catch {} return Promise.resolve(false); }
   function onOpenClaude() {
-    const raw = $('#ai-raw').value.trim();
-    if (!raw) { alert('先把官网原文粘到上面的框里'); return; }
-    const url = 'claude://claude.ai/new?q=' + encodeURIComponent(buildPrompt(raw));
-    window.open(url, '_blank', 'noopener');
+    const raw = $('#ai-raw').value.trim(); if (!raw) { alert('先把官网原文粘到上面的框里'); return; }
+    window.open('claude://claude.ai/new?q=' + encodeURIComponent(buildPrompt(raw)), '_blank', 'noopener');
   }
   function onCopyPrompt() {
-    const raw = $('#ai-raw').value.trim();
-    if (!raw) { alert('先把官网原文粘到上面的框里'); return; }
+    const raw = $('#ai-raw').value.trim(); if (!raw) { alert('先把官网原文粘到上面的框里'); return; }
     const p = buildPrompt(raw);
     copyText(p).then((ok) => { if (ok) flash('已复制提示词，去 Claude 里粘贴'); else window.prompt('复制下面这段，去 Claude 里粘贴：', p); });
   }
-
   function parseDeckJSON(text) {
-    let t = text.trim();
-    t = t.replace(/^```(?:json)?/i, '').replace(/```\s*$/i, '').trim();
-    const a = t.indexOf('{'), b = t.lastIndexOf('}');
-    if (a >= 0 && b > a) t = t.slice(a, b + 1);
+    let t = text.trim().replace(/^```(?:json)?/i, '').replace(/```\s*$/i, '').trim();
+    const a = t.indexOf('{'), b = t.lastIndexOf('}'); if (a >= 0 && b > a) t = t.slice(a, b + 1);
     const obj = JSON.parse(t);
     const pages = Array.isArray(obj) ? obj : obj.pages;
     if (!Array.isArray(pages)) throw new Error('没有找到 pages 数组');
@@ -331,162 +314,123 @@
     if (!p || !TYPE_LABEL[p.type]) return null;
     const base = defaultPage(p.type);
     switch (p.type) {
-      case 'cover':
-        base.title = str(p.title, base.title); base.subtitle = str(p.subtitle, ''); base.footer = str(p.footer, ''); break;
+      case 'cover': base.title = str(p.title, base.title); if (typeof p.showMemoji === 'boolean') base.showMemoji = p.showMemoji; break;
+      case 'bilingual':
+        base.heading = str(p.heading, base.heading); base.en = str(p.en, ''); base.cn = str(p.cn, '');
+        base.actionTitle = str(p.actionTitle, '要怎么做?'); base.steps = toStrArr(p.steps, []); break;
+      case 'table':
+        base.columns = toStrArr(p.columns, base.columns);
+        base.rows = Array.isArray(p.rows) ? p.rows.map((r) => { const a2 = toStrArr(r, []); while (a2.length < base.columns.length) a2.push(''); return a2.slice(0, base.columns.length); }) : [];
+        break;
       case 'list':
         base.heading = str(p.heading, base.heading);
-        base.items = Array.isArray(p.items) ? p.items.map((it) => ({ name: str(it && it.name, ''), note: str(it && it.note, '') })) : base.items;
-        break;
-      case 'detail':
-        base.project = str(p.project, base.project); base.requirements = toStrArr(p.requirements, base.requirements); break;
-      case 'policy':
-        base.title = str(p.title, base.title); base.points = toStrArr(p.points, base.points); break;
-      case 'text':
-        base.title = str(p.title, base.title); base.body = str(p.body, ''); break;
+        base.items = Array.isArray(p.items) ? p.items.map((it) => ({ name: str(it && it.name, ''), note: str(it && it.note, '') })) : base.items; break;
+      case 'policy': base.title = str(p.title, base.title); base.points = toStrArr(p.points, base.points); break;
+      case 'text': base.title = str(p.title, base.title); base.body = str(p.body, ''); break;
     }
     return base;
   }
   function onFill() {
-    const text = $('#ai-result').value;
-    if (!text.trim()) { alert('先把 Claude 返回的 JSON 粘到下面的框里'); return; }
+    const text = $('#ai-result').value; if (!text.trim()) { alert('先把 Claude 返回的 JSON 粘到下面的框里'); return; }
     let pages;
-    try { pages = parseDeckJSON(text); }
-    catch (e) {
-      alert('解析失败：' + e.message + '\n\n请确认粘贴的是完整 JSON（以 { 开头、} 结尾）。原文已保留，可手动修整后重试。');
-      return;
-    }
+    try { pages = parseDeckJSON(text); } catch (e) { alert('解析失败：' + e.message + '\n\n请确认粘贴的是完整 JSON（以 { 开头、} 结尾）。'); return; }
     if (!pages.length) { alert('没解析到任何有效页面。'); return; }
-    state.pages = pages;
-    restructure();
-    flash('已填入 ' + pages.length + ' 页');
+    state.pages = pages; restructure(); flash('已填入 ' + pages.length + ' 页');
   }
 
   // ---------------- 导出（自包含：SVG foreignObject → canvas → PNG） ----------------
   async function getCSS() {
     if (cssCache != null) return cssCache;
-    const files = ['themes.css', 'styles.css'];
-    const parts = await Promise.all(files.map((f) => fetch(f, { cache: 'no-store' }).then((r) => r.text()).catch(() => '')));
+    const parts = await Promise.all(['themes.css', 'styles.css'].map((f) => fetch(f, { cache: 'no-store' }).then((r) => r.text()).catch(() => '')));
     cssCache = parts.join('\n');
     return cssCache;
   }
-
+  function exportFontFace() {
+    if (!displayFontB64) return '';
+    return `@font-face{font-family:"EduDisplay";src:url(data:${displayFontMime};base64,${displayFontB64});font-weight:100 900;font-display:block;}`;
+  }
   async function pageToPng(page) {
-    const css = await getCSS();
-    const inner = `<div class="page-card" style="width:${CARD_W}px;height:${CARD_H}px;transform:none;">${templateHTML(page)}</div>`;
+    const css = exportFontFace() + '\n' + (await getCSS());
+    const inner = `<div class="page-card" data-platform="${state.platform}" style="width:${CARD_W}px;height:${CARD_H}px;transform:none;">${buildCardHTML(page)}</div>`;
     const svg =
       `<svg xmlns="http://www.w3.org/2000/svg" width="${CARD_W}" height="${CARD_H}">` +
       `<foreignObject x="0" y="0" width="${CARD_W}" height="${CARD_H}">` +
-      `<div xmlns="http://www.w3.org/1999/xhtml" class="export-root" data-platform="${state.platform}" ` +
-      `style="width:${CARD_W}px;height:${CARD_H}px;">` +
-      `<style><![CDATA[${css}]]></style>` +
-      inner +
-      `</div></foreignObject></svg>`;
-
+      `<div xmlns="http://www.w3.org/1999/xhtml" class="export-root" data-platform="${state.platform}" style="width:${CARD_W}px;height:${CARD_H}px;">` +
+      `<style><![CDATA[${css}]]></style>${inner}</div></foreignObject></svg>`;
     const img = new Image();
-    img.decoding = 'sync';
-    const url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
-    await new Promise((res, rej) => {
-      img.onload = () => res();
-      img.onerror = () => rej(new Error('图片渲染失败'));
-      img.src = url;
-    });
-
-    const canvas = mk('canvas');
-    canvas.width = CARD_W * EXPORT_SCALE;
-    canvas.height = CARD_H * EXPORT_SCALE;
-    const ctx = canvas.getContext('2d');
-    ctx.scale(EXPORT_SCALE, EXPORT_SCALE);
-    ctx.drawImage(img, 0, 0);
+    await new Promise((res, rej) => { img.onload = () => res(); img.onerror = () => rej(new Error('图片渲染失败')); img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg); });
+    const canvas = mk('canvas'); canvas.width = CARD_W * EXPORT_SCALE; canvas.height = CARD_H * EXPORT_SCALE;
+    const ctx = canvas.getContext('2d'); ctx.scale(EXPORT_SCALE, EXPORT_SCALE); ctx.drawImage(img, 0, 0);
     return canvas.toDataURL('image/png');
   }
-
-  function downloadDataUrl(dataUrl, filename) {
-    const a = mk('a');
-    a.href = dataUrl; a.download = filename;
-    document.body.appendChild(a); a.click(); a.remove();
-  }
-
-  async function exportPage(i) {
-    try {
-      const url = await pageToPng(state.pages[i]);
-      downloadDataUrl(url, `${state.platform}-${String(i + 1).padStart(2, '0')}.png`);
-    } catch (e) { alert('导出失败：' + e.message); }
-  }
+  function downloadDataUrl(dataUrl, filename) { const a = mk('a'); a.href = dataUrl; a.download = filename; document.body.appendChild(a); a.click(); a.remove(); }
+  async function exportPage(i) { try { downloadDataUrl(await pageToPng(state.pages[i]), `${state.platform}-${String(i + 1).padStart(2, '0')}.png`); } catch (e) { alert('导出失败：' + e.message); } }
   async function exportAll() {
     if (!state.pages.length) { alert('还没有页面'); return; }
-    const btn = $('#btn-download-all');
-    btn.disabled = true; const old = btn.textContent; btn.textContent = '导出中…';
+    const btn = $('#btn-download-all'); btn.disabled = true; const old = btn.textContent; btn.textContent = '导出中…';
     try {
-      for (let i = 0; i < state.pages.length; i++) {
-        const url = await pageToPng(state.pages[i]);
-        downloadDataUrl(url, `${state.platform}-${String(i + 1).padStart(2, '0')}.png`);
-        await sleep(300);
-      }
+      for (let i = 0; i < state.pages.length; i++) { downloadDataUrl(await pageToPng(state.pages[i]), `${state.platform}-${String(i + 1).padStart(2, '0')}.png`); await sleep(300); }
       flash('已逐张下载 ' + state.pages.length + ' 张');
-    } catch (e) { alert('导出失败：' + e.message); }
-    finally { btn.disabled = false; btn.textContent = old; }
+    } catch (e) { alert('导出失败：' + e.message); } finally { btn.disabled = false; btn.textContent = old; }
   }
 
-  // ---------------- 平台切换 ----------------
+  // ---------------- 平台切换 / 设置 / 提示 ----------------
   function setPlatform(p) {
     state.platform = p;
     document.documentElement.dataset.platform = p;
     document.querySelectorAll('.plat-btn').forEach((b) => b.classList.toggle('is-active', b.dataset.platform === p));
-    save();
-    renderPreview();
+    save(); renderPreview();
   }
-
-  // ---------------- 提示条 ----------------
   function flash(msg) {
-    let t = document.getElementById('toast');
-    if (!t) { t = mk('div'); t.id = 'toast'; t.className = 'toast'; document.body.appendChild(t); }
-    t.textContent = msg;
-    t.classList.add('show');
-    clearTimeout(flash._t);
-    flash._t = setTimeout(() => t.classList.remove('show'), 1700);
+    let t = document.getElementById('toast'); if (!t) { t = mk('div'); t.id = 'toast'; t.className = 'toast'; document.body.appendChild(t); }
+    t.textContent = msg; t.classList.add('show'); clearTimeout(flash._t); flash._t = setTimeout(() => t.classList.remove('show'), 1700);
   }
 
-  // ---------------- logo ----------------
-  async function loadLogo() {
-    const candidates = ['assets/logo.svg', 'assets/logo.png'];
+  // ---------------- 资产预加载 ----------------
+  function blobToDataUrl(blob) { return new Promise((res) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(blob); }); }
+  async function loadImageAsset(candidates) {
     for (const url of candidates) {
       try {
-        const r = await fetch(url, { cache: 'no-store' });
-        if (!r.ok) continue;
-        if (/\.svg($|\?)/i.test(url)) {
-          const txt = await r.text();
-          logoDataUri = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(txt);
-        } else {
-          const blob = await r.blob();
-          logoDataUri = await new Promise((res) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(blob); });
-        }
-        return;
+        const r = await fetch(url, { cache: 'no-store' }); if (!r.ok) continue;
+        if (/\.svg($|\?)/i.test(url)) return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(await r.text());
+        return await blobToDataUrl(await r.blob());
+      } catch {}
+    }
+    return null;
+  }
+  async function loadFontAsset() {
+    const list = [['assets/fonts/display.woff2', 'font/woff2'], ['assets/fonts/display.ttf', 'font/ttf']];
+    for (const [url, mime] of list) {
+      try {
+        const r = await fetch(url, { cache: 'no-store' }); if (!r.ok) continue;
+        const buf = new Uint8Array(await r.arrayBuffer()); let bin = '';
+        for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i]);
+        displayFontB64 = btoa(bin); displayFontMime = mime; return;
       } catch {}
     }
   }
+  async function loadAssets() {
+    logoDataUri = await loadImageAsset(['assets/logo-mark.svg', 'assets/logo-mark.png']);
+    memojiDataUri = await loadImageAsset(['assets/memoji.png', 'assets/memoji.svg']);
+    await loadFontAsset();
+    renderPreview();
+  }
 
-  // ---------------- 事件绑定 ----------------
+  // ---------------- 绑定 / 初始化 ----------------
   function wire() {
     document.querySelectorAll('.plat-btn').forEach((b) => b.addEventListener('click', () => setPlatform(b.dataset.platform)));
-    document.querySelectorAll('[data-add]').forEach((b) => b.addEventListener('click', () => {
-      state.pages.push(defaultPage(b.dataset.add));
-      restructure();
-    }));
+    document.querySelectorAll('[data-add]').forEach((b) => b.addEventListener('click', () => { state.pages.push(defaultPage(b.dataset.add)); restructure(); }));
     $('#btn-download-all').addEventListener('click', exportAll);
     $('#btn-ai-open').addEventListener('click', onOpenClaude);
     $('#btn-ai-copy').addEventListener('click', onCopyPrompt);
     $('#btn-ai-fill').addEventListener('click', onFill);
+    const lbl = $('#set-label'); lbl.value = state.brandLabel; lbl.addEventListener('input', () => { state.brandLabel = lbl.value; touch(); });
+    const ft = $('#set-footer'); ft.value = state.footerNote; ft.addEventListener('input', () => { state.footerNote = ft.value; touch(); });
   }
-
   function init() {
     document.documentElement.dataset.platform = state.platform;
     document.querySelectorAll('.plat-btn').forEach((b) => b.classList.toggle('is-active', b.dataset.platform === state.platform));
-    wire();
-    renderEditors();
-    renderPreview();
-    loadLogo().then(() => renderPreview());
+    wire(); renderEditors(); renderPreview(); loadAssets();
   }
-
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
-  else init();
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();

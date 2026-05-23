@@ -1,56 +1,59 @@
-/* 两套平台主题。切换 <html data-platform> 即整体换风格。
-   后续会按用户提供的小红书/小绿书参考图精调这些 token。 */
+/* EduLight 两套品牌主题。切换 <html data-platform> 即整体换风格。
+   用属性选择器（非 :root[...]）以便导出时的离屏 wrapper 也能拿到变量。 */
 
 :root {
-  /* 卡片设计尺寸（3:4）。导出时按 pixelRatio=2 放大到 1080x1440 */
-  --card-w: 540px;
+  --card-w: 540px;   /* 设计尺寸 3:4，导出按 ×2 → 1080×1440 */
   --card-h: 720px;
-
   --font-body: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
-  --font-display: var(--font-body);
+  /* 封面大字体：优先用户放进 assets/fonts 的字体，缺省回退系统最粗黑体 */
+  --font-display: "EduDisplay", "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
-/* ---------- 小红书：暖红 / 奶白 ----------
-   用属性选择器（而非 :root[...]）以便导出时的离屏 wrapper 也能拿到变量 */
+/* 自定义封面字体钩子（用户把字体文件放到 assets/fonts/display.* 即生效；缺省自动回退） */
+@font-face {
+  font-family: "EduDisplay";
+  src: url("assets/fonts/display.woff2") format("woff2"),
+       url("assets/fonts/display.ttf") format("truetype");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+/* ---------- 小红书：深藏蓝单色（封面色号 #191970） ---------- */
 [data-platform="xhs"] {
-  --ui-accent: #ff2e4d;
+  --ui-accent: #191970;
 
-  --page-bg: #fff5f3;
-  --page-bg-2: #ffe3df;
-  --card-radius: 28px;
+  --logo-color: #191970;
+  --slogan-color: #191970;
+  --accent: #191970;
+  --heading: #191970;
+  --title-color: #191970;
+  --ink: #191970;
+  --ink-soft: #6a6a94;
+  --brand-label-color: #191970;
 
-  --ink: #2b1d1a;
-  --ink-soft: #8a6f69;
-  --accent: #ff2e4d;
-  --accent-soft: #ffd9d3;
-  --on-accent: #ffffff;
+  --table-head-bg: #191970;
+  --table-head-ink: #ffffff;
+  --table-border: #c7c7df;
 
-  --cover-bg: linear-gradient(160deg, #ff5a6e 0%, #ff2e4d 60%, #e21f3c 100%);
-  --cover-ink: #ffffff;
-  --cover-sub: rgba(255, 255, 255, 0.86);
-
-  --chip-bg: #fff0ee;
-  --divider: rgba(255, 46, 77, 0.18);
+  --footer-color: #9a9aa0;
 }
 
-/* ---------- 小绿书：清新绿 / 米白 ---------- */
+/* ---------- 小绿书：红 logo + 蓝边框/蓝标题（封面色号 #1e66cc）+ 红小标题 ---------- */
 [data-platform="xls"] {
-  --ui-accent: #16a06a;
+  --ui-accent: #1e66cc;
 
-  --page-bg: #f1faf3;
-  --page-bg-2: #d9f1e2;
-  --card-radius: 28px;
+  --logo-color: #e5352a;
+  --slogan-color: #1e66cc;
+  --accent: #1e66cc;
+  --heading: #e5352a;
+  --title-color: #1e66cc;
+  --ink: #1c1c1e;
+  --ink-soft: #6b6b70;
+  --brand-label-color: #1e66cc;
 
-  --ink: #14241c;
-  --ink-soft: #5f8071;
-  --accent: #16a06a;
-  --accent-soft: #c9efd8;
-  --on-accent: #ffffff;
+  --table-head-bg: #4a2d6e;
+  --table-head-ink: #ffffff;
+  --table-border: #d8d0e6;
 
-  --cover-bg: linear-gradient(160deg, #34c47d 0%, #16a06a 60%, #0c7d50 100%);
-  --cover-ink: #ffffff;
-  --cover-sub: rgba(255, 255, 255, 0.88);
-
-  --chip-bg: #e8f7ee;
-  --divider: rgba(22, 160, 106, 0.18);
+  --footer-color: #9a9aa0;
 }

@@ -1,6 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="220" height="56" viewBox="0 0 220 56">
-  <rect x="0" y="6" width="44" height="44" rx="12" fill="#ffffff" opacity="0.18"/>
-  <circle cx="22" cy="28" r="13" fill="none" stroke="#ffffff" stroke-width="3"/>
-  <circle cx="27" cy="23" r="3.2" fill="#ffffff"/>
-  <text x="58" y="36" font-family="-apple-system, PingFang SC, sans-serif" font-size="26" font-weight="800" fill="#ffffff">你的品牌</text>
-</svg>

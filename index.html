@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>红绿书出图器</title>
+  <title>红绿书出图器 · EduLight</title>
   <link rel="stylesheet" href="themes.css" />
   <link rel="stylesheet" href="styles.css" />
 </head>
@@ -15,35 +15,43 @@
     </div>
 
     <div class="platform-switch" role="tablist" aria-label="平台">
-      <button class="plat-btn is-active" data-platform="xhs" role="tab">小红书</button>
-      <button class="plat-btn" data-platform="xls" role="tab">小绿书</button>
+      <button class="plat-btn is-active" data-platform="xhs" role="tab">小红书（藏蓝）</button>
+      <button class="plat-btn" data-platform="xls" role="tab">小绿书（红蓝）</button>
     </div>
 
     <div class="topbar-actions">
-      <button id="btn-download-all" class="btn btn-primary">下载全部 (zip)</button>
+      <button id="btn-download-all" class="btn btn-primary">下载全部</button>
     </div>
   </header>
 
   <main class="layout">
     <!-- 左：编辑区 -->
     <section class="editor" aria-label="编辑区">
+      <!-- 品牌设置 -->
+      <details class="panel">
+        <summary>品牌设置（栏目名 / 页脚）</summary>
+        <div class="panel-body">
+          <label class="field-label" for="set-label">栏目名（小绿书报头用，如 签证信息 / 院校信息）</label>
+          <input id="set-label" class="inp" type="text" />
+          <label class="field-label" for="set-footer">页脚备注（内容页底部，可空）</label>
+          <textarea id="set-footer" class="ta" rows="2"></textarea>
+        </div>
+      </details>
+
       <!-- AI 整理 -->
       <details class="panel ai-panel" open>
         <summary>用 Claude 整理零散信息</summary>
         <div class="panel-body">
           <label class="field-label" for="ai-raw">① 粘贴官网原文</label>
           <textarea id="ai-raw" class="ta" rows="5"
-            placeholder="把学校官网那段零散的信息粘进来，比如：南京理工大学春季一月份开课的项目……"></textarea>
-
+            placeholder="把学校官网那段零散的信息粘进来……"></textarea>
           <div class="btn-row">
             <button id="btn-ai-open" class="btn">让 Claude 整理 →</button>
             <button id="btn-ai-copy" class="btn btn-ghost">复制提示词</button>
           </div>
           <p class="hint">点「让 Claude 整理」会打开 Claude App 并带上提示词；打不开就用「复制提示词」，自己去 Claude 里粘贴。</p>
-
           <label class="field-label" for="ai-result">② 把 Claude 返回的 JSON 粘回来</label>
-          <textarea id="ai-result" class="ta" rows="5"
-            placeholder='{ "pages": [ ... ] }'></textarea>
+          <textarea id="ai-result" class="ta" rows="5" placeholder='{ "pages": [ ... ] }'></textarea>
           <div class="btn-row">
             <button id="btn-ai-fill" class="btn btn-primary">填入页面</button>
           </div>
@@ -55,14 +63,14 @@
         <div class="add-row">
           <span class="field-label">添加页面：</span>
           <button class="btn btn-sm" data-add="cover">+ 封面</button>
+          <button class="btn btn-sm" data-add="bilingual">+ 双语分析</button>
+          <button class="btn btn-sm" data-add="table">+ 排名表格</button>
           <button class="btn btn-sm" data-add="list">+ 列表</button>
-          <button class="btn btn-sm" data-add="detail">+ 详情</button>
           <button class="btn btn-sm" data-add="policy">+ 政策</button>
           <button class="btn btn-sm" data-add="text">+ 文本</button>
         </div>
       </div>
 
-      <!-- 页面编辑列表 -->
       <div id="page-editors" class="page-editors"></div>
     </section>
 
