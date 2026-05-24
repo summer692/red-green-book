@@ -543,6 +543,8 @@
     wrap.style.height = (CARD_H * scale) + 'px';
     wrap.appendChild(card);
     cv = { page, card, box: card.querySelector('.tpl-canvas'), sel: null };
+    cv.refs = ['cv-ref-v', 'cv-ref-h', 'cv-ref-t1', 'cv-ref-t2'].map((c) => mk('div', 'cv-ref ' + c));
+    cv.gv = mk('div', 'cv-guide cv-guide-v'); cv.gh = mk('div', 'cv-guide cv-guide-h');
     const cbox = card.querySelector('.content-box');
     cbox.addEventListener('pointerdown', (e) => { if (e.target.classList.contains('content-box') || e.target.classList.contains('tpl-canvas')) selectEl(null); });
     rebuildCanvasEls();
@@ -554,7 +556,8 @@
   function rebuildCanvasEls() {
     const box = cv.box; box.innerHTML = '';
     cv.page.elements.forEach((e) => box.appendChild(buildEditableEl(e)));
-    [...box.children].forEach((n) => n.classList.toggle('selected', n._el === cv.sel));
+    if (cv.refs) { cv.refs.forEach((r) => box.appendChild(r)); box.appendChild(cv.gv); box.appendChild(cv.gh); }
+    [...box.children].forEach((n) => { if (n._el) n.classList.toggle('selected', n._el === cv.sel); });
   }
   function buildEditableEl(e) {
     const node = mk('div', 'cv-el ' + (e.kind === 'image' ? 'cv-img' : 'cv-text'));
@@ -580,9 +583,26 @@
   function boxRect() { return cv.box.getBoundingClientRect(); }
   function startDrag(ev, e, node) {
     ev.preventDefault(); selectEl(e);
-    const r = boxRect(), sx = ev.clientX, sy = ev.clientY, ox = e.x, oy = e.y;
-    const mv = (e2) => { e.x = clamp(ox + (e2.clientX - sx) / r.width, 0, 1); e.y = clamp(oy + (e2.clientY - sy) / r.height, 0, 1); node.style.left = (e.x * 100) + '%'; node.style.top = (e.y * 100) + '%'; };
-    const up = () => { document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); save(); };
+    const r = boxRect(), sx = ev.clientX, sy = ev.clientY, ox = e.x, oy = e.y, SNAP = 0.014;
+    const mv = (e2) => {
+      let nx = clamp(ox + (e2.clientX - sx) / r.width, 0, 1);
+      let ny = clamp(oy + (e2.clientY - sy) / r.height, 0, 1);
+      const elH = node.offsetHeight / r.height;
+      let lineX = null, lineY = null;
+      if (Math.abs((nx + e.w / 2) - 0.5) < SNAP) { nx = 0.5 - e.w / 2; lineX = 50; }
+      else if (Math.abs(nx) < SNAP) { nx = 0; lineX = 0; }
+      else if (Math.abs((nx + e.w) - 1) < SNAP) { nx = 1 - e.w; lineX = 100; }
+      else if (Math.abs((nx + e.w / 2) - 1 / 3) < SNAP) { nx = 1 / 3 - e.w / 2; lineX = 33.33; }
+      else if (Math.abs((nx + e.w / 2) - 2 / 3) < SNAP) { nx = 2 / 3 - e.w / 2; lineX = 66.66; }
+      if (Math.abs((ny + elH / 2) - 0.5) < SNAP) { ny = 0.5 - elH / 2; lineY = 50; }
+      else if (Math.abs(ny) < SNAP) { ny = 0; lineY = 0; }
+      else if (Math.abs((ny + elH) - 1) < SNAP) { ny = 1 - elH; lineY = 100; }
+      e.x = nx; e.y = ny;
+      node.style.left = (nx * 100) + '%'; node.style.top = (ny * 100) + '%';
+      if (cv.gv) { if (lineX != null) { cv.gv.style.left = lineX + '%'; cv.gv.style.display = 'block'; } else cv.gv.style.display = 'none'; }
+      if (cv.gh) { if (lineY != null) { cv.gh.style.top = lineY + '%'; cv.gh.style.display = 'block'; } else cv.gh.style.display = 'none'; }
+    };
+    const up = () => { document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); if (cv.gv) cv.gv.style.display = 'none'; if (cv.gh) cv.gh.style.display = 'none'; save(); };
     document.addEventListener('pointermove', mv); document.addEventListener('pointerup', up);
   }
   function startResize(ev, e, node) {
