@@ -179,12 +179,20 @@
     d.pages = d.pages.map((pg) => migratePage(pg, d));
     return d;
   }
+  // 双语分析已停用：转成文本内容
+  function biToText(p) {
+    const parts = [str(p.en, ''), str(p.cn, '')].filter(Boolean);
+    const steps = Array.isArray(p.steps) ? p.steps.filter(Boolean) : [];
+    if (p.actionTitle || steps.length) { parts.push(str(p.actionTitle, '要怎么做?')); steps.forEach((s, i) => parts.push((i + 1) + '. ' + s)); }
+    return { type: 'text', title: str(p.heading, ''), body: parts.join('\n') };
+  }
   // 旧模板页 → 画布页（保留内容）；表格/画布页保持
   function migratePage(pg, d) {
     if (!pg || typeof pg !== 'object') return defaultPage('canvas');
-    if (pg.type === 'canvas') { if (!Array.isArray(pg.elements)) pg.elements = []; if (typeof pg.preset !== 'string') pg.preset = 'canvas'; return pg; }
+    if (pg.type === 'canvas') { if (!Array.isArray(pg.elements)) pg.elements = []; if (typeof pg.preset !== 'string' || pg.preset === 'bilingual') pg.preset = pg.preset === 'bilingual' ? 'text' : (typeof pg.preset === 'string' ? pg.preset : 'canvas'); return pg; }
     if (pg.type === 'table') { if (!Array.isArray(pg.columns)) pg.columns = ['列1', '列2']; if (!Array.isArray(pg.rows)) pg.rows = []; if (typeof pg.title !== 'string') pg.title = ''; return pg; }
-    if (['cover', 'bilingual', 'list', 'policy', 'text'].includes(pg.type)) {
+    if (pg.type === 'bilingual') pg = Object.assign({ id: pg.id }, biToText(pg));
+    if (['cover', 'list', 'policy', 'text'].includes(pg.type)) {
       return { id: pg.id || uid(), type: 'canvas', preset: pg.type, noFooter: pg.type === 'cover', elements: elementsFromContent(pg.type, pg, { coverFont: d.coverFont, memojiData: d.memojiData }) };
     }
     return defaultPage('canvas');
@@ -565,15 +573,14 @@
       '{',
       '  "pages": [',
       '    {"type":"cover","title":"封面大标题(可用\\n换行,每行尽量≤5字)"},',
-      '    {"type":"bilingual","heading":"红色小标题","en":"英文加粗段(可空)","cn":"中文翻译/说明","actionTitle":"要怎么做?","steps":["步骤一","步骤二"]},',
       '    {"type":"table","title":"表格标题","columns":["列1","列2","列3"],"rows":[["a","b","c"],["d","e","f"]]},',
       '    {"type":"list","heading":"小标题","items":[{"name":"项目名","note":"一句话说明"}]},',
       '    {"type":"policy","title":"政策标题","points":["要点一","要点二"]},',
-      '    {"type":"text","title":"标题","body":"正文"}',
+      '    {"type":"text","title":"标题","body":"正文(可用\\n换行)"}',
       '  ]',
       '}',
-      '整理规则：第一页一般是 cover；多个项目用 list 概览，再每个项目各一页 detail/text；',
-      '签证/拒签类用 bilingual；录取数据/排名等用 table；',
+      '整理规则：第一页一般是 cover；多个项目用 list 概览，再每个项目各一页 text；',
+      '录取数据/排名等用 table；其它说明用 text；',
       '内容必须基于下面原文，不要编造，不要遗漏关键信息（时间、地点、报名方式、要求、学费）。',
       '原文：', '"""', raw, '"""',
     ].join('\n');
@@ -598,6 +605,7 @@
   }
   function normalizePage(p) {
     if (!p || !TYPE_LABEL[p.type]) return null;
+    if (p.type === 'bilingual') p = biToText(p); // 双语分析已停用 → 文本
     if (p.type === 'table') {
       const cols = toStrArr(p.columns, ['专业', '中国学生录取', '全部录取', '申请要求']);
       const rows = Array.isArray(p.rows) ? p.rows.map((r) => { const a2 = toStrArr(r, []); while (a2.length < cols.length) a2.push(''); return a2.slice(0, cols.length); }) : [];
