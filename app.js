@@ -815,6 +815,7 @@
     $('#cv-front').addEventListener('click', () => { reorderSel(1); });
     $('#cv-back').addEventListener('click', () => { reorderSel(-1); });
     $('#cv-del').addEventListener('click', () => { if (!cv.sel) return; const i = cv.page.elements.indexOf(cv.sel); if (i >= 0) cv.page.elements.splice(i, 1); cv.sel = null; rebuildCanvasEls(); updateCvToolbar(); save(); });
+    $('#cv-tidy').addEventListener('click', tidyCanvas);
     $('#cv-done').addEventListener('click', closeCanvasEditor);
     document.addEventListener('keydown', (e) => {
       if (!cv || $('#cv-modal').hidden || !cv.sel) return;
@@ -829,6 +830,17 @@
       const n = selNode(); if (n) { n.style.left = (cv.sel.x * 100) + '%'; n.style.top = (cv.sel.y * 100) + '%'; }
       save();
     });
+  }
+  function tidyCanvas() {
+    if (!cv || !cv.page.elements.length) return;
+    const r = boxRect();
+    const texts = cv.page.elements.filter((e) => e.kind === 'text').sort((a, b) => a.y - b.y);
+    if (!texts.length) return;
+    texts.forEach((e) => { e.x = 0.06; e.w = 0.88; }); // 统一左对齐 + 等宽
+    rebuildCanvasEls(); // 应用新宽度后再量高度
+    let y = 0.04; const GAP = 0.022;
+    texts.forEach((e) => { const n = [...cv.box.children].find((c) => c._el === e); const h = n ? n.offsetHeight / r.height : 0.08; e.y = y; y += h + GAP; });
+    rebuildCanvasEls(); save(); flash('已整理排版');
   }
   function reorderSel(dir) {
     if (!cv.sel) return;
