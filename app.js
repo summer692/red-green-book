@@ -665,6 +665,7 @@
     }
   }
   async function loadAssets() {
+    if (state.logoData && (!state.logoNatW || !state.logoNatH)) { const n = await imgNat(state.logoData); state.logoNatW = n.w; state.logoNatH = n.h; save(); }
     logoDataUri = await loadImageAsset(['assets/logo-mark.svg', 'assets/logo-mark.png']);
     if (logoDataUri) logoAssetNat = await imgNat(logoDataUri);
     memojiDataUri = await loadImageAsset(['assets/memoji.png', 'assets/memoji.svg']);
@@ -680,7 +681,10 @@
     $('#lg-scale').value = state.logoScale || 1;
     $('#lg-x').value = state.logoOffsetX || 0;
     $('#lg-y').value = state.logoOffsetY || 0;
-    const onready = () => { layoutCropRect(); updateLogoPrev(); };
+    const onready = () => {
+      if (img.naturalWidth) { state.logoNatW = img.naturalWidth; state.logoNatH = img.naturalHeight; save(); }
+      layoutCropRect(); updateLogoPrev(); renderPreview();
+    };
     img.onload = onready; img.src = src;
     if (img.complete && img.naturalWidth) onready();
     $('#logo-modal').hidden = false;
