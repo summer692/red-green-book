@@ -717,6 +717,19 @@
     $('#cv-back').addEventListener('click', () => { reorderSel(-1); });
     $('#cv-del').addEventListener('click', () => { if (!cv.sel) return; const i = cv.page.elements.indexOf(cv.sel); if (i >= 0) cv.page.elements.splice(i, 1); cv.sel = null; rebuildCanvasEls(); updateCvToolbar(); save(); });
     $('#cv-done').addEventListener('click', closeCanvasEditor);
+    document.addEventListener('keydown', (e) => {
+      if (!cv || $('#cv-modal').hidden || !cv.sel) return;
+      const ae = document.activeElement;
+      if (ae && (ae.isContentEditable || /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName))) return;
+      const map = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+      const dir = map[e.key]; if (!dir) return;
+      e.preventDefault();
+      const step = e.shiftKey ? 0.02 : 0.004;
+      cv.sel.x = clamp(cv.sel.x + dir[0] * step, 0, 1);
+      cv.sel.y = clamp(cv.sel.y + dir[1] * step, 0, 1);
+      const n = selNode(); if (n) { n.style.left = (cv.sel.x * 100) + '%'; n.style.top = (cv.sel.y * 100) + '%'; }
+      save();
+    });
   }
   function reorderSel(dir) {
     if (!cv.sel) return;
