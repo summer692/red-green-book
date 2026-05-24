@@ -25,7 +25,7 @@
     courier: "'Courier New', Courier, monospace",
     custom: "'EduDisplay', -apple-system, 'PingFang SC', sans-serif",
   };
-  function coverFontStack() { return FONT_STACKS[state.coverFont] || FONT_STACKS.hei; }
+  function coverFontStack() { return FONT_STACKS[D().coverFont] || FONT_STACKS.hei; }
 
   // 资产（用户放进 assets/ 后自动生效）
   let logoDataUri = null;     // assets/logo-mark.(svg|png) → 按主题色重新上色
@@ -61,36 +61,55 @@
     }
   }
   const DEF_CROP = { x: 0, y: 0, w: 1, h: 1 };
-  function freshState() { return { platform: 'xhs', brandLabel: '签证信息', footerNote: DEFAULT_FOOTER, coverFont: 'hei', brandLabelSize: 24, sloganSize: 24, sloganOffsetX: 0, sloganOffsetY: 0, logoData: null, logoRecolor: true, logoNatW: 0, logoNatH: 0, logoScale: 1, logoOffsetX: 0, logoOffsetY: 0, logoCrop: { x: 0, y: 0, w: 1, h: 1 }, memojiData: null, memojiScale: 1, memojiOffsetX: 0, memojiOffsetY: 0, pages: [defaultPage('cover')] }; }
+  function newDeck() {
+    return {
+      pages: [defaultPage('cover')],
+      brandLabel: '签证信息', brandLabelSize: 24, footerNote: DEFAULT_FOOTER, coverFont: 'hei',
+      sloganSize: 24, sloganOffsetX: 0, sloganOffsetY: 0,
+      logoData: null, logoNatW: 0, logoNatH: 0, logoRecolor: true,
+      logoScale: 1, logoOffsetX: 0, logoOffsetY: 0, logoCrop: { x: 0, y: 0, w: 1, h: 1 },
+      memojiData: null, memojiScale: 1, memojiOffsetX: 0, memojiOffsetY: 0,
+    };
+  }
+  function normalizeDeck(s) {
+    const d = (s && typeof s === 'object') ? s : {};
+    if (!Array.isArray(d.pages)) d.pages = [defaultPage('cover')];
+    if (typeof d.brandLabel !== 'string') d.brandLabel = '签证信息';
+    if (typeof d.brandLabelSize !== 'number') d.brandLabelSize = 24;
+    if (typeof d.footerNote !== 'string') d.footerNote = DEFAULT_FOOTER;
+    if (!FONT_STACKS[d.coverFont]) d.coverFont = 'hei';
+    if (typeof d.sloganSize !== 'number') d.sloganSize = 24;
+    if (typeof d.sloganOffsetX !== 'number') d.sloganOffsetX = 0;
+    if (typeof d.sloganOffsetY !== 'number') d.sloganOffsetY = 0;
+    if (typeof d.logoData !== 'string') d.logoData = null;
+    if (typeof d.logoNatW !== 'number') d.logoNatW = 0;
+    if (typeof d.logoNatH !== 'number') d.logoNatH = 0;
+    if (typeof d.logoRecolor !== 'boolean') d.logoRecolor = true;
+    if (typeof d.logoScale !== 'number') d.logoScale = 1;
+    if (typeof d.logoOffsetX !== 'number') d.logoOffsetX = 0;
+    if (typeof d.logoOffsetY !== 'number') d.logoOffsetY = 0;
+    if (!d.logoCrop || typeof d.logoCrop !== 'object') d.logoCrop = { x: 0, y: 0, w: 1, h: 1 };
+    if (typeof d.memojiData !== 'string') d.memojiData = null;
+    if (typeof d.memojiScale !== 'number') d.memojiScale = 1;
+    if (typeof d.memojiOffsetX !== 'number') d.memojiOffsetX = 0;
+    if (typeof d.memojiOffsetY !== 'number') d.memojiOffsetY = 0;
+    return d;
+  }
+  function clone(o) { return JSON.parse(JSON.stringify(o)); }
+  function freshState() { return { platform: 'xhs', decks: { xhs: newDeck(), xls: newDeck() } }; }
   function loadState() {
     try {
       const s = JSON.parse(localStorage.getItem(LS_KEY));
-      if (!s || !Array.isArray(s.pages)) return freshState();
-      if (s.platform !== 'xhs' && s.platform !== 'xls') s.platform = 'xhs';
-      if (typeof s.brandLabel !== 'string') s.brandLabel = '签证信息';
-      if (typeof s.footerNote !== 'string') s.footerNote = DEFAULT_FOOTER;
-      if (!FONT_STACKS[s.coverFont]) s.coverFont = 'hei';
-      if (typeof s.brandLabelSize !== 'number') s.brandLabelSize = 24;
-      if (typeof s.sloganSize !== 'number') s.sloganSize = 24;
-      if (typeof s.sloganOffsetX !== 'number') s.sloganOffsetX = 0;
-      if (typeof s.sloganOffsetY !== 'number') s.sloganOffsetY = 0;
-      if (typeof s.logoData !== 'string') s.logoData = null;
-      if (typeof s.logoRecolor !== 'boolean') s.logoRecolor = true;
-      if (typeof s.logoNatW !== 'number') s.logoNatW = 0;
-      if (typeof s.logoNatH !== 'number') s.logoNatH = 0;
-      if (typeof s.logoScale !== 'number') s.logoScale = 1;
-      if (typeof s.logoOffsetX !== 'number') s.logoOffsetX = 0;
-      if (typeof s.logoOffsetY !== 'number') s.logoOffsetY = 0;
-      if (!s.logoCrop || typeof s.logoCrop !== 'object') s.logoCrop = { x: 0, y: 0, w: 1, h: 1 };
-      if (typeof s.memojiData !== 'string') s.memojiData = null;
-      if (typeof s.memojiScale !== 'number') s.memojiScale = 1;
-      if (typeof s.memojiOffsetX !== 'number') s.memojiOffsetX = 0;
-      if (typeof s.memojiOffsetY !== 'number') s.memojiOffsetY = 0;
-      return s;
+      if (!s || typeof s !== 'object') return freshState();
+      const platform = (s.platform === 'xls') ? 'xls' : 'xhs';
+      if (s.decks && s.decks.xhs && s.decks.xls) return { platform, decks: { xhs: normalizeDeck(s.decks.xhs), xls: normalizeDeck(s.decks.xls) } };
+      if (Array.isArray(s.pages)) { const d = normalizeDeck(s); return { platform, decks: { xhs: d, xls: clone(d) } }; } // 旧版单 deck → 两平台各一份（互不联动）
+      return freshState();
     } catch { return freshState(); }
   }
+  function D() { return state.decks[state.platform]; }
   function imgNat(url) { return new Promise((res) => { const i = new Image(); i.onload = () => res({ w: i.naturalWidth, h: i.naturalHeight }); i.onerror = () => res({ w: 0, h: 0 }); i.src = url; }); }
-  function resetLogoAdjust() { state.logoScale = 1; state.logoOffsetX = 0; state.logoOffsetY = 0; state.logoCrop = { x: 0, y: 0, w: 1, h: 1 }; }
+  function resetLogoAdjust() { D().logoScale = 1; D().logoOffsetX = 0; D().logoOffsetY = 0; D().logoCrop = { x: 0, y: 0, w: 1, h: 1 }; }
   let state = loadState();
   function save() { try { localStorage.setItem(LS_KEY, JSON.stringify(state)); return true; } catch { return false; } }
   function touch() { save(); renderPreview(); }
@@ -98,12 +117,12 @@
 
   // ---------------- 报头 / 卡片骨架 ----------------
   function logoMarkup() {
-    const src = state.logoData || logoDataUri;
+    const src = D().logoData || logoDataUri;
     if (!src) return `<div class="logo-text">EduLight<span class="spark"></span></div>`;
-    const natW = state.logoData ? state.logoNatW : logoAssetNat.w;
-    const natH = state.logoData ? state.logoNatH : logoAssetNat.h;
-    const c = state.logoCrop || DEF_CROP;
-    const scale = state.logoScale || 1;
+    const natW = D().logoData ? D().logoNatW : logoAssetNat.w;
+    const natH = D().logoData ? D().logoNatH : logoAssetNat.h;
+    const c = D().logoCrop || DEF_CROP;
+    const scale = D().logoScale || 1;
     const boxH = 46 * scale;
     let boxW, bgW, bgH, bgX, bgY;
     if (natW > 0 && natH > 0 && c.w > 0 && c.h > 0) {
@@ -111,8 +130,8 @@
       bgW = boxW / c.w; bgH = boxH / c.h; bgX = -c.x * bgW; bgY = -c.y * bgH;
     } else { boxW = 200 * scale; bgW = boxW; bgH = boxH; bgX = 0; bgY = 0; }
     const f = (n) => n.toFixed(1);
-    const common = `width:${f(boxW)}px;height:${f(boxH)}px;transform:translate(${state.logoOffsetX || 0}px,${state.logoOffsetY || 0}px);`;
-    if (state.logoRecolor !== false) {
+    const common = `width:${f(boxW)}px;height:${f(boxH)}px;transform:translate(${D().logoOffsetX || 0}px,${D().logoOffsetY || 0}px);`;
+    if (D().logoRecolor !== false) {
       return `<div class="logo-box" style="${common}background-color:var(--logo-color);-webkit-mask-image:url('${src}');mask-image:url('${src}');-webkit-mask-size:${f(bgW)}px ${f(bgH)}px;mask-size:${f(bgW)}px ${f(bgH)}px;-webkit-mask-position:${f(bgX)}px ${f(bgY)}px;mask-position:${f(bgX)}px ${f(bgY)}px;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;"></div>`;
     }
     return `<div class="logo-box" style="${common}background-image:url('${src}');background-size:${f(bgW)}px ${f(bgH)}px;background-position:${f(bgX)}px ${f(bgY)}px;background-repeat:no-repeat;"></div>`;
@@ -121,15 +140,15 @@
     if (state.platform === 'xhs') {
       return `<div class="masthead mh-xhs">
           <div class="mh-left">${logoMarkup()}<div class="mh-bars"><span></span><span></span></div></div>
-          <div class="mh-right" style="transform:translate(${state.sloganOffsetX || 0}px,${state.sloganOffsetY || 0}px)"><div class="mh-line"></div><div class="mh-slogan" style="font-size:${state.sloganSize || 24}px">LIGHT UP THE FUTURE!</div></div>
+          <div class="mh-right" style="transform:translate(${D().sloganOffsetX || 0}px,${D().sloganOffsetY || 0}px)"><div class="mh-line"></div><div class="mh-slogan" style="font-size:${D().sloganSize || 24}px">LIGHT UP THE FUTURE!</div></div>
         </div>`;
     }
-    return `<div class="masthead mh-xls">${logoMarkup()}${state.brandLabel ? `<div class="brand-label" style="font-size:${state.brandLabelSize || 24}px">${esc(state.brandLabel)}</div>` : ''}</div>`;
+    return `<div class="masthead mh-xls">${logoMarkup()}${D().brandLabel ? `<div class="brand-label" style="font-size:${D().brandLabelSize || 24}px">${esc(D().brandLabel)}</div>` : ''}</div>`;
   }
 
   function buildCardHTML(page) {
     const isCover = page.type === 'cover';
-    const footer = (!isCover && !page.noFooter && state.footerNote) ? `<div class="card-footer">${esc(state.footerNote)}</div>` : '';
+    const footer = (!isCover && !page.noFooter && D().footerNote) ? `<div class="card-footer">${esc(D().footerNote)}</div>` : '';
     return `<div class="frame">${masthead()}<div class="content-box">${templateHTML(page)}</div>${footer}</div>`;
   }
   function buildCard(page) { const c = mk('div', 'page-card'); c.style.setProperty('--cover-font', coverFontStack()); c.innerHTML = buildCardHTML(page); return c; }
@@ -138,9 +157,9 @@
   function templateHTML(p) {
     switch (p.type) {
       case 'cover': {
-        const mjSrc = state.memojiData || memojiDataUri;
+        const mjSrc = D().memojiData || memojiDataUri;
         const showMj = state.platform === 'xhs' && p.showMemoji !== false && mjSrc;
-        const mjStyle = `height:${(190 * (state.memojiScale || 1)).toFixed(1)}px;transform:translate(${state.memojiOffsetX || 0}px,${state.memojiOffsetY || 0}px);`;
+        const mjStyle = `height:${(190 * (D().memojiScale || 1)).toFixed(1)}px;transform:translate(${D().memojiOffsetX || 0}px,${D().memojiOffsetY || 0}px);`;
         return `<div class="tpl-cover">
             <h1 class="cover-title">${esc(p.title)}</h1>
             ${showMj ? `<img class="cover-memoji" src="${mjSrc}" style="${mjStyle}" alt="" />` : ''}
@@ -199,18 +218,18 @@
     const list = $('#preview-list');
     list.innerHTML = '';
     const scale = DISP_W / CARD_W;
-    state.pages.forEach((page, i) => {
+    D().pages.forEach((page, i) => {
       const frame = mk('div', 'page-frame');
       frame.style.width = DISP_W + 'px';
       frame.style.height = (CARD_H * scale) + 'px';
       const card = buildCard(page);
       card.style.transform = `scale(${scale})`;
       frame.appendChild(card);
-      const num = mk('div', 'page-pagenum'); num.textContent = (i + 1) + '/' + state.pages.length; frame.appendChild(num);
+      const num = mk('div', 'page-pagenum'); num.textContent = (i + 1) + '/' + D().pages.length; frame.appendChild(num);
       const dl = mk('button', 'btn btn-sm dl-this'); dl.textContent = '下载'; dl.addEventListener('click', () => exportPage(i)); frame.appendChild(dl);
       list.appendChild(frame);
     });
-    $('#preview-empty').style.display = state.pages.length ? 'none' : 'block';
+    $('#preview-empty').style.display = D().pages.length ? 'none' : 'block';
   }
 
   // ---------------- 编辑器 ----------------
@@ -229,8 +248,8 @@
     const row = mk('div', 'lg-inline');
     const l = mk('span'); l.textContent = labelText; row.appendChild(l);
     const inp = mk('input', 'lg-mini', { type: 'range', min: String(min), max: String(max), step: String(step) });
-    inp.value = state[key];
-    inp.addEventListener('input', () => { state[key] = num(inp.value, key === 'memojiScale' ? 1 : 0); touch(); });
+    inp.value = D()[key];
+    inp.addEventListener('input', () => { D()[key] = num(inp.value, key === 'memojiScale' ? 1 : 0); touch(); });
     row.appendChild(inp); return row;
   }
   function stringListEditor(arr, placeholder) {
@@ -306,19 +325,19 @@
         const sp = mk('span'); sp.textContent = '显示 3D 人物（仅小红书封面）';
         cr.append(cb, sp); b.appendChild(cr);
         if (page.showMemoji !== false) {
-          const has = state.memojiData || memojiDataUri;
+          const has = D().memojiData || memojiDataUri;
           const up = mk('label', 'btn btn-sm'); up.textContent = has ? '更换人物图片' : '上传人物图片';
           const fi = mk('input', '', { type: 'file', accept: 'image/*' }); fi.style.display = 'none';
-          fi.addEventListener('change', async () => { const f = fi.files && fi.files[0]; fi.value = ''; if (!f) return; if (!/^image\//.test(f.type)) { alert('请选择图片文件'); return; } state.memojiData = await readDataUrl(f); if (!save()) flash('图太大，本地存不下；本次有效，刷新会丢'); restructure(); flash('人物已更新'); });
+          fi.addEventListener('change', async () => { const f = fi.files && fi.files[0]; fi.value = ''; if (!f) return; if (!/^image\//.test(f.type)) { alert('请选择图片文件'); return; } D().memojiData = await readDataUrl(f); if (!save()) flash('图太大，本地存不下；本次有效，刷新会丢'); restructure(); flash('人物已更新'); });
           up.appendChild(fi);
-          const clr = mk('button', 'btn btn-sm btn-ghost'); clr.textContent = '清除人物'; clr.addEventListener('click', () => { state.memojiData = null; restructure(); flash('已清除人物'); });
+          const clr = mk('button', 'btn btn-sm btn-ghost'); clr.textContent = '清除人物'; clr.addEventListener('click', () => { D().memojiData = null; restructure(); flash('已清除人物'); });
           const row = mk('div', 'btn-row'); row.append(up, clr); b.appendChild(row);
           if (has) {
             b.appendChild(label('人物大小 / 位置（拖滑块移动；或点下方“转为自由画布”直接拖）'));
             b.appendChild(rangeRow('缩放', 'memojiScale', 0.4, 2.5, 0.05));
             b.appendChild(rangeRow('水平', 'memojiOffsetX', -220, 220, 2));
             b.appendChild(rangeRow('垂直', 'memojiOffsetY', -260, 160, 2));
-            const rs = mk('button', 'btn btn-sm'); rs.textContent = '复原人物'; rs.addEventListener('click', () => { state.memojiScale = 1; state.memojiOffsetX = 0; state.memojiOffsetY = 0; restructure(); flash('已复原人物'); });
+            const rs = mk('button', 'btn btn-sm'); rs.textContent = '复原人物'; rs.addEventListener('click', () => { D().memojiScale = 1; D().memojiOffsetX = 0; D().memojiOffsetY = 0; restructure(); flash('已复原人物'); });
             b.appendChild(rs);
           }
         }
@@ -376,13 +395,13 @@
     const push = (text, size, color, weight, align) => {
       const cpl = Math.max(1, Math.floor((W * CW) / size));
       const lines = String(text).split('\n').reduce((a, l) => a + Math.max(1, Math.ceil((l.length || 1) / cpl)), 0);
-      els.push({ id: uid(), kind: 'text', x: X, y, w: W, text: String(text), size, color: color || '', weight, align: align || 'left', font: state.coverFont || 'hei' });
+      els.push({ id: uid(), kind: 'text', x: X, y, w: W, text: String(text), size, color: color || '', weight, align: align || 'left', font: D().coverFont || 'hei' });
       y += (lines * size * 1.32) / CH + 0.025;
     };
     switch (page.type) {
       case 'cover':
         push(page.title, 80, title, 900, 'left');
-        if (page.showMemoji !== false && (state.memojiData || memojiDataUri)) els.push({ id: uid(), kind: 'image', x: 0.34, y: Math.min(0.6, y + 0.05), w: 0.32, src: state.memojiData || memojiDataUri });
+        if (page.showMemoji !== false && (D().memojiData || memojiDataUri)) els.push({ id: uid(), kind: 'image', x: 0.34, y: Math.min(0.6, y + 0.05), w: 0.32, src: D().memojiData || memojiDataUri });
         break;
       case 'text': push(page.title, 46, heading, 900); push(page.body, 24, ink, 400); break;
       case 'policy': push(page.title, 42, heading, 900); (page.points || []).forEach((pt) => push('· ' + pt, 24, ink, 500)); break;
@@ -400,19 +419,19 @@
     page.type = 'canvas'; page.elements = els; if (noFooter) page.noFooter = true;
     return true;
   }
-  function move(i, dir) { const j = i + dir; if (j < 0 || j >= state.pages.length) return; const t = state.pages[i]; state.pages[i] = state.pages[j]; state.pages[j] = t; restructure(); }
+  function move(i, dir) { const j = i + dir; if (j < 0 || j >= D().pages.length) return; const t = D().pages[i]; D().pages[i] = D().pages[j]; D().pages[j] = t; restructure(); }
   function renderEditors() {
     const root = $('#page-editors'); root.innerHTML = '';
-    state.pages.forEach((page, i) => {
+    D().pages.forEach((page, i) => {
       const card = mk('div', 'pe-card');
       const head = mk('div', 'pe-head');
       const type = mk('span', 'pe-type'); type.innerHTML = `<span class="dot"></span>${TYPE_LABEL[page.type] || page.type}`;
       const idx = mk('span', 'pe-idx'); idx.textContent = '第 ' + (i + 1) + ' 页';
       const sp = mk('span', 'spacer');
       const up = mk('button', 'icon-btn'); up.textContent = '↑'; up.title = '上移'; up.disabled = i === 0; up.addEventListener('click', () => move(i, -1));
-      const dn = mk('button', 'icon-btn'); dn.textContent = '↓'; dn.title = '下移'; dn.disabled = i === state.pages.length - 1; dn.addEventListener('click', () => move(i, 1));
+      const dn = mk('button', 'icon-btn'); dn.textContent = '↓'; dn.title = '下移'; dn.disabled = i === D().pages.length - 1; dn.addEventListener('click', () => move(i, 1));
       const del = mk('button', 'icon-btn btn-danger'); del.textContent = '删除';
-      del.addEventListener('click', () => { if (confirm('删除第 ' + (i + 1) + ' 页？')) { state.pages.splice(i, 1); restructure(); } });
+      del.addEventListener('click', () => { if (confirm('删除第 ' + (i + 1) + ' 页？')) { D().pages.splice(i, 1); restructure(); } });
       head.append(type, idx, sp, up, dn, del);
       card.appendChild(head); card.appendChild(editorBody(page)); root.appendChild(card);
     });
@@ -489,7 +508,7 @@
     let pages;
     try { pages = parseDeckJSON(text); } catch (e) { alert('解析失败：' + e.message + '\n\n请确认粘贴的是完整 JSON（以 { 开头、} 结尾）。'); return; }
     if (!pages.length) { alert('没解析到任何有效页面。'); return; }
-    state.pages = pages; restructure(); flash('已填入 ' + pages.length + ' 页');
+    D().pages = pages; restructure(); flash('已填入 ' + pages.length + ' 页');
   }
 
   // ---------------- 导出（自包含：SVG foreignObject → canvas → PNG） ----------------
@@ -518,13 +537,13 @@
     return canvas.toDataURL('image/png');
   }
   function downloadDataUrl(dataUrl, filename) { const a = mk('a'); a.href = dataUrl; a.download = filename; document.body.appendChild(a); a.click(); a.remove(); }
-  async function exportPage(i) { try { downloadDataUrl(await pageToPng(state.pages[i]), `${state.platform}-${String(i + 1).padStart(2, '0')}.png`); } catch (e) { alert('导出失败：' + e.message); } }
+  async function exportPage(i) { try { downloadDataUrl(await pageToPng(D().pages[i]), `${state.platform}-${String(i + 1).padStart(2, '0')}.png`); } catch (e) { alert('导出失败：' + e.message); } }
   async function exportAll() {
-    if (!state.pages.length) { alert('还没有页面'); return; }
+    if (!D().pages.length) { alert('还没有页面'); return; }
     const btn = $('#btn-download-all'); btn.disabled = true; const old = btn.textContent; btn.textContent = '导出中…';
     try {
-      for (let i = 0; i < state.pages.length; i++) { downloadDataUrl(await pageToPng(state.pages[i]), `${state.platform}-${String(i + 1).padStart(2, '0')}.png`); await sleep(300); }
-      flash('已逐张下载 ' + state.pages.length + ' 张');
+      for (let i = 0; i < D().pages.length; i++) { downloadDataUrl(await pageToPng(D().pages[i]), `${state.platform}-${String(i + 1).padStart(2, '0')}.png`); await sleep(300); }
+      flash('已逐张下载 ' + D().pages.length + ' 张');
     } catch (e) { alert('导出失败：' + e.message); } finally { btn.disabled = false; btn.textContent = old; }
   }
 
@@ -630,7 +649,7 @@
   }
   function wireCanvas() {
     $('#cv-add-text').addEventListener('click', () => {
-      const e = { id: uid(), kind: 'text', x: 0.1, y: 0.12, w: 0.8, text: '新文字', size: 40, color: '', weight: 800, align: 'left', font: state.coverFont || 'hei' };
+      const e = { id: uid(), kind: 'text', x: 0.1, y: 0.12, w: 0.8, text: '新文字', size: 40, color: '', weight: 800, align: 'left', font: D().coverFont || 'hei' };
       cv.page.elements.push(e); rebuildCanvasEls(); selectEl(e); save();
     });
     bindUpload('#cv-add-img', (data) => {
@@ -658,7 +677,31 @@
     state.platform = p;
     document.documentElement.dataset.platform = p;
     document.querySelectorAll('.plat-btn').forEach((b) => b.classList.toggle('is-active', b.dataset.platform === p));
-    save(); renderPreview();
+    refreshSettingsUI();
+    save(); renderEditors(); renderPreview();
+  }
+  function refreshSettingsUI() {
+    const d = D();
+    $('#set-label').value = d.brandLabel;
+    $('#set-label-size').value = d.brandLabelSize;
+    $('#set-footer').value = d.footerNote;
+    $('#set-font').value = d.coverFont;
+    $('#logo-recolor').checked = d.logoRecolor !== false;
+    $('#set-slogan-size').value = d.sloganSize;
+    $('#set-slogan-x').value = d.sloganOffsetX;
+    $('#set-slogan-y').value = d.sloganOffsetY;
+    const other = state.platform === 'xhs' ? '小绿书' : '小红书';
+    const cp = $('#btn-copy-other'); if (cp) cp.textContent = '复制内容到' + other;
+  }
+  function copyToOther() {
+    const otherKey = state.platform === 'xhs' ? 'xls' : 'xhs';
+    const otherName = otherKey === 'xhs' ? '小红书' : '小绿书';
+    if (!confirm('把当前平台的页面内容 + 已上传的 logo/人物图片复制到「' + otherName + '」？会覆盖' + otherName + '现有页面（其字号/位置等设计仍各自独立，复制后可单独调整）。')) return;
+    const from = D(), to = state.decks[otherKey];
+    to.pages = clone(from.pages);
+    to.logoData = from.logoData; to.logoNatW = from.logoNatW; to.logoNatH = from.logoNatH;
+    to.memojiData = from.memojiData;
+    save(); flash('已复制内容到' + otherName);
   }
   function flash(msg) {
     let t = document.getElementById('toast'); if (!t) { t = mk('div'); t.id = 'toast'; t.className = 'toast'; document.body.appendChild(t); }
@@ -689,7 +732,7 @@
     }
   }
   async function loadAssets() {
-    if (state.logoData && (!state.logoNatW || !state.logoNatH)) { const n = await imgNat(state.logoData); state.logoNatW = n.w; state.logoNatH = n.h; save(); }
+    for (const k of ['xhs', 'xls']) { const dk = state.decks[k]; if (dk.logoData && (!dk.logoNatW || !dk.logoNatH)) { const n = await imgNat(dk.logoData); dk.logoNatW = n.w; dk.logoNatH = n.h; save(); } }
     logoDataUri = await loadImageAsset(['assets/logo-mark.svg', 'assets/logo-mark.png']);
     if (logoDataUri) logoAssetNat = await imgNat(logoDataUri);
     memojiDataUri = await loadImageAsset(['assets/memoji.png', 'assets/memoji.svg']);
@@ -699,14 +742,14 @@
 
   // ---------------- logo 调整器（裁剪/缩放/移动，全局统一） ----------------
   function openLogoEditor() {
-    const src = state.logoData || logoDataUri;
+    const src = D().logoData || logoDataUri;
     if (!src) { alert('请先点上方“上传 logo”选择一张图片'); return; }
     const img = $('#lg-crop-img');
-    $('#lg-scale').value = state.logoScale || 1;
-    $('#lg-x').value = state.logoOffsetX || 0;
-    $('#lg-y').value = state.logoOffsetY || 0;
+    $('#lg-scale').value = D().logoScale || 1;
+    $('#lg-x').value = D().logoOffsetX || 0;
+    $('#lg-y').value = D().logoOffsetY || 0;
     const onready = () => {
-      if (img.naturalWidth) { state.logoNatW = img.naturalWidth; state.logoNatH = img.naturalHeight; save(); }
+      if (img.naturalWidth) { D().logoNatW = img.naturalWidth; D().logoNatH = img.naturalHeight; save(); }
       layoutCropRect(); updateLogoPrev(); renderPreview();
     };
     img.onload = onready; img.src = src;
@@ -714,7 +757,7 @@
     $('#logo-modal').hidden = false;
   }
   function layoutCropRect() {
-    const c = state.logoCrop || DEF_CROP, r = $('#lg-crop-rect');
+    const c = D().logoCrop || DEF_CROP, r = $('#lg-crop-rect');
     r.style.left = (c.x * 100) + '%'; r.style.top = (c.y * 100) + '%'; r.style.width = (c.w * 100) + '%'; r.style.height = (c.h * 100) + '%';
   }
   function updateLogoPrev() { document.querySelectorAll('.lg-prev-logo').forEach((el) => { el.innerHTML = logoMarkup(); }); }
@@ -722,14 +765,14 @@
   function startCropDrag(ev) {
     if (ev.target.classList.contains('lg-crop-handle')) return;
     ev.preventDefault();
-    const c = state.logoCrop, r = lgImgRect(), sx = ev.clientX, sy = ev.clientY, ox = c.x, oy = c.y;
+    const c = D().logoCrop, r = lgImgRect(), sx = ev.clientX, sy = ev.clientY, ox = c.x, oy = c.y;
     const mv = (e2) => { c.x = clamp(ox + (e2.clientX - sx) / r.width, 0, 1 - c.w); c.y = clamp(oy + (e2.clientY - sy) / r.height, 0, 1 - c.h); layoutCropRect(); updateLogoPrev(); };
     const up = () => { document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); save(); renderPreview(); };
     document.addEventListener('pointermove', mv); document.addEventListener('pointerup', up);
   }
   function startCropResize(ev) {
     ev.preventDefault(); ev.stopPropagation();
-    const c = state.logoCrop, r = lgImgRect(), sx = ev.clientX, sy = ev.clientY, ow = c.w, oh = c.h;
+    const c = D().logoCrop, r = lgImgRect(), sx = ev.clientX, sy = ev.clientY, ow = c.w, oh = c.h;
     const mv = (e2) => { c.w = clamp(ow + (e2.clientX - sx) / r.width, 0.05, 1 - c.x); c.h = clamp(oh + (e2.clientY - sy) / r.height, 0.05, 1 - c.y); layoutCropRect(); updateLogoPrev(); };
     const up = () => { document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); save(); renderPreview(); };
     document.addEventListener('pointermove', mv); document.addEventListener('pointerup', up);
@@ -738,7 +781,7 @@
     $('#logo-adjust').addEventListener('click', openLogoEditor);
     $('#lg-crop-rect').addEventListener('pointerdown', startCropDrag);
     $('#lg-crop-rect').querySelector('.lg-crop-handle').addEventListener('pointerdown', startCropResize);
-    const sync = (id, key) => $(id).addEventListener('input', () => { state[key] = num($(id).value, key === 'logoScale' ? 1 : 0); updateLogoPrev(); renderPreview(); save(); });
+    const sync = (id, key) => $(id).addEventListener('input', () => { D()[key] = num($(id).value, key === 'logoScale' ? 1 : 0); updateLogoPrev(); renderPreview(); save(); });
     sync('#lg-scale', 'logoScale'); sync('#lg-x', 'logoOffsetX'); sync('#lg-y', 'logoOffsetY');
     $('#lg-reset').addEventListener('click', () => { resetLogoAdjust(); $('#lg-scale').value = 1; $('#lg-x').value = 0; $('#lg-y').value = 0; layoutCropRect(); updateLogoPrev(); renderPreview(); save(); flash('已复原 logo 调整'); });
     $('#lg-done').addEventListener('click', () => { $('#logo-modal').hidden = true; renderPreview(); });
@@ -747,24 +790,24 @@
   // ---------------- 绑定 / 初始化 ----------------
   function wire() {
     document.querySelectorAll('.plat-btn').forEach((b) => b.addEventListener('click', () => setPlatform(b.dataset.platform)));
-    document.querySelectorAll('[data-add]').forEach((b) => b.addEventListener('click', () => { state.pages.push(defaultPage(b.dataset.add)); restructure(); }));
+    document.querySelectorAll('[data-add]').forEach((b) => b.addEventListener('click', () => { D().pages.push(defaultPage(b.dataset.add)); restructure(); }));
     $('#btn-download-all').addEventListener('click', exportAll);
     $('#btn-ai-open').addEventListener('click', onOpenClaude);
     $('#btn-ai-copy').addEventListener('click', onCopyPrompt);
     $('#btn-ai-fill').addEventListener('click', onFill);
-    const lbl = $('#set-label'); lbl.value = state.brandLabel; lbl.addEventListener('input', () => { state.brandLabel = lbl.value; touch(); });
-    const lblSize = $('#set-label-size'); lblSize.value = state.brandLabelSize; lblSize.addEventListener('input', () => { state.brandLabelSize = num(lblSize.value, 24); touch(); });
-    const slInit = () => { $('#set-slogan-size').value = state.sloganSize; $('#set-slogan-x').value = state.sloganOffsetX; $('#set-slogan-y').value = state.sloganOffsetY; };
+    const lbl = $('#set-label'); lbl.value = D().brandLabel; lbl.addEventListener('input', () => { D().brandLabel = lbl.value; touch(); });
+    const lblSize = $('#set-label-size'); lblSize.value = D().brandLabelSize; lblSize.addEventListener('input', () => { D().brandLabelSize = num(lblSize.value, 24); touch(); });
+    const slInit = () => { $('#set-slogan-size').value = D().sloganSize; $('#set-slogan-x').value = D().sloganOffsetX; $('#set-slogan-y').value = D().sloganOffsetY; };
     slInit();
-    const slSync = (id, key) => $(id).addEventListener('input', () => { state[key] = num($(id).value, key === 'sloganSize' ? 24 : 0); touch(); });
+    const slSync = (id, key) => $(id).addEventListener('input', () => { D()[key] = num($(id).value, key === 'sloganSize' ? 24 : 0); touch(); });
     slSync('#set-slogan-size', 'sloganSize'); slSync('#set-slogan-x', 'sloganOffsetX'); slSync('#set-slogan-y', 'sloganOffsetY');
-    $('#set-slogan-reset').addEventListener('click', () => { state.sloganSize = 24; state.sloganOffsetX = 0; state.sloganOffsetY = 0; slInit(); touch(); flash('已复原标语'); });
-    const ft = $('#set-footer'); ft.value = state.footerNote; ft.addEventListener('input', () => { state.footerNote = ft.value; touch(); });
-    const fontSel = $('#set-font'); fontSel.value = state.coverFont; fontSel.addEventListener('change', () => { state.coverFont = fontSel.value; touch(); });
+    $('#set-slogan-reset').addEventListener('click', () => { D().sloganSize = 24; D().sloganOffsetX = 0; D().sloganOffsetY = 0; slInit(); touch(); flash('已复原标语'); });
+    const ft = $('#set-footer'); ft.value = D().footerNote; ft.addEventListener('input', () => { D().footerNote = ft.value; touch(); });
+    const fontSel = $('#set-font'); fontSel.value = D().coverFont; fontSel.addEventListener('change', () => { D().coverFont = fontSel.value; touch(); });
 
-    const recolor = $('#logo-recolor'); recolor.checked = state.logoRecolor !== false; recolor.addEventListener('change', () => { state.logoRecolor = recolor.checked; touch(); });
-    bindUpload('#up-logo', async (data) => { state.logoData = data; const n = await imgNat(data); state.logoNatW = n.w; state.logoNatH = n.h; resetLogoAdjust(); if (!save()) flash('图太大，本地存不下；本次有效，刷新会丢'); renderPreview(); flash('logo 已更新，可点“裁剪/缩放/移动”调整'); });
-    $('#clr-logo').addEventListener('click', () => { state.logoData = null; touch(); flash('已清除 logo'); });
+    const recolor = $('#logo-recolor'); recolor.checked = D().logoRecolor !== false; recolor.addEventListener('change', () => { D().logoRecolor = recolor.checked; touch(); });
+    bindUpload('#up-logo', async (data) => { D().logoData = data; const n = await imgNat(data); D().logoNatW = n.w; D().logoNatH = n.h; resetLogoAdjust(); if (!save()) flash('图太大，本地存不下；本次有效，刷新会丢'); renderPreview(); flash('logo 已更新，可点“裁剪/缩放/移动”调整'); });
+    $('#clr-logo').addEventListener('click', () => { D().logoData = null; touch(); flash('已清除 logo'); });
   }
   function readDataUrl(file) { return new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = rej; fr.readAsDataURL(file); }); }
   function bindUpload(sel, onData) {
@@ -778,9 +821,13 @@
     });
   }
   function init() {
+    save(); // 持久化（含旧格式迁移到双 deck）
     document.documentElement.dataset.platform = state.platform;
     document.querySelectorAll('.plat-btn').forEach((b) => b.classList.toggle('is-active', b.dataset.platform === state.platform));
-    wire(); wireCanvas(); wireLogoEditor(); renderEditors(); renderPreview(); loadAssets();
+    wire(); wireCanvas(); wireLogoEditor();
+    $('#btn-copy-other').addEventListener('click', copyToOther);
+    refreshSettingsUI();
+    renderEditors(); renderPreview(); loadAssets();
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();
