@@ -47,19 +47,51 @@
   function uid() { return 'p' + Math.random().toString(36).slice(2, 9); }
 
   // ---------------- 状态 ----------------
-  function defaultPage(type) {
-    const base = { id: uid(), type };
+  function templateDefault(type) {
     switch (type) {
-      case 'cover': return Object.assign(base, { title: '香港大学\n2026 FALL\n工学院新增', showMemoji: true });
-      case 'bilingual': return Object.assign(base, { heading: '拒签原因一：你没有证明这门课非去澳洲读不可', en: '', cn: '', actionTitle: '要怎么做?', steps: ['', ''] });
-      case 'table': return Object.assign(base, { title: '录取数据一览', columns: ['专业', '中国学生录取', '全部录取', '申请要求'], rows: [['', '', '', ''], ['', '', '', '']] });
-      case 'list': return Object.assign(base, { heading: '本期项目一览', items: [{ name: '项目名称', note: '一句话说明' }] });
-      case 'policy': return Object.assign(base, { title: '政策标题', points: ['要点一'] });
-      case 'text': return Object.assign(base, { title: '标题', body: '正文内容……' });
-      case 'canvas': return Object.assign(base, { elements: [{ id: uid(), kind: 'text', x: 0.08, y: 0.1, w: 0.84, text: '双击编辑文字', size: 40, color: '', weight: 800, align: 'left', font: 'hei' }] });
-      default: return null;
+      case 'cover': return { title: '香港大学\n2026 FALL\n工学院新增', showMemoji: true };
+      case 'bilingual': return { heading: '拒签原因一：你没有证明这门课非去澳洲读不可', en: '', cn: '', actionTitle: '要怎么做?', steps: ['', ''] };
+      case 'list': return { heading: '本期项目一览', items: [{ name: '项目名称', note: '一句话说明' }] };
+      case 'policy': return { title: '政策标题', points: ['要点一'] };
+      case 'text': return { title: '标题', body: '正文内容……' };
+      default: return {};
     }
   }
+  // 把模板内容铺成画布元素（var() 颜色随主题自适应；不依赖 D() 以便迁移时调用）
+  function elementsFromContent(type, c, opts) {
+    opts = opts || {}; const coverFont = opts.coverFont || 'hei', memoji = opts.memojiData || null;
+    const els = []; const X = 0.06, W = 0.88, CW = 470, CH = 600; let y = 0.06;
+    const TITLE = 'var(--title-color)', HEAD = 'var(--heading)', INK = '';
+    const push = (text, size, color, weight, align) => {
+      const cpl = Math.max(1, Math.floor((W * CW) / size));
+      const lines = String(text).split('\n').reduce((a, l) => a + Math.max(1, Math.ceil((l.length || 1) / cpl)), 0);
+      els.push({ id: uid(), kind: 'text', x: X, y, w: W, text: String(text), size, color, weight, align: align || 'left', font: type === 'cover' ? coverFont : 'hei' });
+      y += (lines * size * 1.32) / CH + 0.025;
+    };
+    switch (type) {
+      case 'cover':
+        push(c.title || '', 80, TITLE, 900, 'center');
+        if (c.showMemoji !== false && memoji) els.push({ id: uid(), kind: 'image', x: 0.34, y: Math.min(0.6, y + 0.05), w: 0.32, src: memoji });
+        break;
+      case 'text': push(c.title || '', 46, HEAD, 900); push(c.body || '', 24, INK, 400); break;
+      case 'policy': push(c.title || '', 42, HEAD, 900); (c.points || []).forEach((pt) => push('· ' + pt, 24, INK, 500)); break;
+      case 'list': push(c.heading || '', 34, HEAD, 800); (c.items || []).forEach((it, i) => push((i + 1) + '. ' + it.name + (it.note ? '  ' + it.note : ''), 24, INK, 500)); break;
+      case 'bilingual':
+        push(c.heading || '', 30, HEAD, 800);
+        if (c.en) push(c.en, 21, INK, 800);
+        if (c.cn) push(c.cn, 21, INK, 400);
+        if (c.steps && c.steps.filter(Boolean).length) { push(c.actionTitle || '要怎么做?', 28, HEAD, 800); c.steps.filter(Boolean).forEach((s, i) => push((i + 1) + '. ' + s, 21, INK, 500)); }
+        break;
+    }
+    return els;
+  }
+  function presetPage(type, opts) { return { id: uid(), type: 'canvas', noFooter: type === 'cover', elements: elementsFromContent(type, templateDefault(type), opts) }; }
+  function defaultPage(type, opts) {
+    if (type === 'table') return { id: uid(), type: 'table', title: '录取数据一览', columns: ['专业', '中国学生录取', '全部录取', '申请要求'], rows: [['', '', '', ''], ['', '', '', '']] };
+    if (type === 'canvas') return { id: uid(), type: 'canvas', elements: [{ id: uid(), kind: 'text', x: 0.08, y: 0.1, w: 0.84, text: '双击编辑文字', size: 40, color: '', weight: 800, align: 'left', font: 'hei' }] };
+    return presetPage(type, opts || {});
+  }
+  function deckOpts() { return { coverFont: D().coverFont, memojiData: D().memojiData }; }
   const DEF_CROP = { x: 0, y: 0, w: 1, h: 1 };
   function newDeck() {
     return {
@@ -93,7 +125,18 @@
     if (typeof d.memojiScale !== 'number') d.memojiScale = 1;
     if (typeof d.memojiOffsetX !== 'number') d.memojiOffsetX = 0;
     if (typeof d.memojiOffsetY !== 'number') d.memojiOffsetY = 0;
+    d.pages = d.pages.map((pg) => migratePage(pg, d));
     return d;
+  }
+  // 旧模板页 → 画布页（保留内容）；表格/画布页保持
+  function migratePage(pg, d) {
+    if (!pg || typeof pg !== 'object') return defaultPage('canvas');
+    if (pg.type === 'canvas') { if (!Array.isArray(pg.elements)) pg.elements = []; return pg; }
+    if (pg.type === 'table') { if (!Array.isArray(pg.columns)) pg.columns = ['列1', '列2']; if (!Array.isArray(pg.rows)) pg.rows = []; if (typeof pg.title !== 'string') pg.title = ''; return pg; }
+    if (['cover', 'bilingual', 'list', 'policy', 'text'].includes(pg.type)) {
+      return { id: pg.id || uid(), type: 'canvas', noFooter: pg.type === 'cover', elements: elementsFromContent(pg.type, pg, { coverFont: d.coverFont, memojiData: d.memojiData }) };
+    }
+    return defaultPage('canvas');
   }
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
   function freshState() { return { platform: 'xhs', decks: { xhs: newDeck(), xls: newDeck() } }; }
@@ -479,24 +522,19 @@
   }
   function normalizePage(p) {
     if (!p || !TYPE_LABEL[p.type]) return null;
-    const base = defaultPage(p.type);
-    switch (p.type) {
-      case 'cover': base.title = str(p.title, base.title); if (typeof p.showMemoji === 'boolean') base.showMemoji = p.showMemoji; break;
-      case 'bilingual':
-        base.heading = str(p.heading, base.heading); base.en = str(p.en, ''); base.cn = str(p.cn, '');
-        base.actionTitle = str(p.actionTitle, '要怎么做?'); base.steps = toStrArr(p.steps, []); break;
-      case 'table':
-        base.columns = toStrArr(p.columns, base.columns);
-        base.rows = Array.isArray(p.rows) ? p.rows.map((r) => { const a2 = toStrArr(r, []); while (a2.length < base.columns.length) a2.push(''); return a2.slice(0, base.columns.length); }) : [];
-        break;
-      case 'list':
-        base.heading = str(p.heading, base.heading);
-        base.items = Array.isArray(p.items) ? p.items.map((it) => ({ name: str(it && it.name, ''), note: str(it && it.note, '') })) : base.items; break;
-      case 'policy': base.title = str(p.title, base.title); base.points = toStrArr(p.points, base.points); break;
-      case 'text': base.title = str(p.title, base.title); base.body = str(p.body, ''); break;
-      case 'canvas': base.elements = Array.isArray(p.elements) ? p.elements.map(normEl).filter(Boolean) : base.elements; break;
+    if (p.type === 'table') {
+      const cols = toStrArr(p.columns, ['专业', '中国学生录取', '全部录取', '申请要求']);
+      const rows = Array.isArray(p.rows) ? p.rows.map((r) => { const a2 = toStrArr(r, []); while (a2.length < cols.length) a2.push(''); return a2.slice(0, cols.length); }) : [];
+      return { id: uid(), type: 'table', title: str(p.title, ''), columns: cols, rows };
     }
-    return base;
+    if (p.type === 'canvas') return { id: uid(), type: 'canvas', elements: Array.isArray(p.elements) ? p.elements.map(normEl).filter(Boolean) : [] };
+    const c = {};
+    if (p.type === 'cover') { c.title = str(p.title, ''); c.showMemoji = (typeof p.showMemoji === 'boolean') ? p.showMemoji : true; }
+    else if (p.type === 'bilingual') { c.heading = str(p.heading, ''); c.en = str(p.en, ''); c.cn = str(p.cn, ''); c.actionTitle = str(p.actionTitle, '要怎么做?'); c.steps = toStrArr(p.steps, []); }
+    else if (p.type === 'list') { c.heading = str(p.heading, ''); c.items = Array.isArray(p.items) ? p.items.map((it) => ({ name: str(it && it.name, ''), note: str(it && it.note, '') })) : []; }
+    else if (p.type === 'policy') { c.title = str(p.title, ''); c.points = toStrArr(p.points, []); }
+    else if (p.type === 'text') { c.title = str(p.title, ''); c.body = str(p.body, ''); }
+    return { id: uid(), type: 'canvas', noFooter: p.type === 'cover', elements: elementsFromContent(p.type, c, deckOpts()) };
   }
   function normEl(e) {
     if (!e) return null;
@@ -791,7 +829,7 @@
   // ---------------- 绑定 / 初始化 ----------------
   function wire() {
     document.querySelectorAll('.plat-btn').forEach((b) => b.addEventListener('click', () => setPlatform(b.dataset.platform)));
-    document.querySelectorAll('[data-add]').forEach((b) => b.addEventListener('click', () => { D().pages.push(defaultPage(b.dataset.add)); restructure(); }));
+    document.querySelectorAll('[data-add]').forEach((b) => b.addEventListener('click', () => { D().pages.push(defaultPage(b.dataset.add, deckOpts())); restructure(); }));
     $('#btn-download-all').addEventListener('click', exportAll);
     $('#btn-ai-open').addEventListener('click', onOpenClaude);
     $('#btn-ai-copy').addEventListener('click', onCopyPrompt);
