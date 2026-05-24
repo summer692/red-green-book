@@ -33,6 +33,47 @@
     courier: "'Courier New', Courier, monospace",
     custom: "'EduDisplay', -apple-system, 'PingFang SC', sans-serif",
   };
+  // 网络字体（Google Fonts）：预览用 <link> 加载，导出时按所用文字子集内联
+  const WEBFONTS = {
+    notosans: { label: '思源黑体', g: 'Noto+Sans+SC:wght@500;700;900', fam: 'Noto Sans SC', fb: "'PingFang SC',sans-serif" },
+    notoserif: { label: '思源宋体', g: 'Noto+Serif+SC:wght@600;900', fam: 'Noto Serif SC', fb: "'Songti SC',serif" },
+    huangyou: { label: '站酷黄油体', g: 'ZCOOL+QingKe+HuangYou', fam: 'ZCOOL QingKe HuangYou', fb: "'PingFang SC',sans-serif" },
+    kuaile: { label: '站酷快乐体', g: 'ZCOOL+KuaiLe', fam: 'ZCOOL KuaiLe', fb: 'sans-serif' },
+    xiaowei: { label: '站酷小薇', g: 'ZCOOL+XiaoWei', fam: 'ZCOOL XiaoWei', fb: 'serif' },
+    mashan: { label: '马善政楷体', g: 'Ma+Shan+Zheng', fam: 'Ma Shan Zheng', fb: "'Kaiti SC',serif" },
+    longcang: { label: '龙藏手写', g: 'Long+Cang', fam: 'Long Cang', fb: 'cursive' },
+    zhimang: { label: '智芒手写', g: 'Zhi+Mang+Xing', fam: 'Zhi Mang Xing', fb: 'cursive' },
+    anton: { label: 'Anton', g: 'Anton', fam: 'Anton', fb: 'sans-serif' },
+    bebas: { label: 'Bebas Neue', g: 'Bebas+Neue', fam: 'Bebas Neue', fb: 'sans-serif' },
+    oswald: { label: 'Oswald', g: 'Oswald:wght@600;700', fam: 'Oswald', fb: 'sans-serif' },
+    montserrat: { label: 'Montserrat', g: 'Montserrat:wght@700;800', fam: 'Montserrat', fb: 'sans-serif' },
+    poppins: { label: 'Poppins', g: 'Poppins:wght@700;800', fam: 'Poppins', fb: 'sans-serif' },
+    playfair: { label: 'Playfair', g: 'Playfair+Display:wght@700;900', fam: 'Playfair Display', fb: 'serif' },
+    lobster: { label: 'Lobster', g: 'Lobster', fam: 'Lobster', fb: 'cursive' },
+    pacifico: { label: 'Pacifico', g: 'Pacifico', fam: 'Pacifico', fb: 'cursive' },
+  };
+  for (const k in WEBFONTS) FONT_STACKS[k] = "'" + WEBFONTS[k].fam + "', " + WEBFONTS[k].fb;
+  const FONT_LABELS = { hei: '黑体', yuan: '圆体', kai: '楷体', song: '宋体', libian: '隶书', weibei: '魏碑', yuppy: '雅痞', impact: 'Impact', futura: 'Futura', helvetica: 'Helvetica', georgia: 'Georgia', times: 'Times', courier: 'Courier', custom: '自定义(assets/fonts)' };
+  const FONT_GROUPS = [
+    ['系统·中文', ['hei', 'yuan', 'kai', 'song', 'libian', 'weibei', 'yuppy']],
+    ['系统·英文', ['impact', 'futura', 'helvetica', 'georgia', 'times', 'courier']],
+    ['网络·中文', ['notosans', 'notoserif', 'huangyou', 'kuaile', 'xiaowei', 'mashan', 'longcang', 'zhimang']],
+    ['网络·英文', ['anton', 'bebas', 'oswald', 'montserrat', 'poppins', 'playfair', 'lobster', 'pacifico']],
+    ['自定义', ['custom']],
+  ];
+  function fontLabel(k) { return WEBFONTS[k] ? WEBFONTS[k].label : (FONT_LABELS[k] || k); }
+  const loadedWebFonts = new Set();
+  function ensureWebFont(key) {
+    const w = WEBFONTS[key]; if (!w || loadedWebFonts.has(key)) return;
+    loadedWebFonts.add(key);
+    const l = document.createElement('link'); l.rel = 'stylesheet';
+    l.href = 'https://fonts.googleapis.com/css2?family=' + w.g + '&display=swap';
+    document.head.appendChild(l);
+  }
+  function populateFontSelects() {
+    const html = FONT_GROUPS.map(([g, keys]) => '<optgroup label="' + g + '">' + keys.map((k) => '<option value="' + k + '">' + fontLabel(k) + '</option>').join('') + '</optgroup>').join('');
+    ['#set-font', '#cv-font'].forEach((sel) => { const el = $(sel); if (el) el.innerHTML = html; });
+  }
   function coverFontStack() { return FONT_STACKS[D().coverFont] || FONT_STACKS.hei; }
 
   // 资产（用户放进 assets/ 后自动生效）
@@ -281,6 +322,7 @@
     const list = $('#preview-list');
     list.innerHTML = '';
     const scale = DISP_W / CARD_W;
+    D().pages.forEach((pg) => (pg.elements || []).forEach((e) => { if (e.font) ensureWebFont(e.font); }));
     D().pages.forEach((page, i) => {
       const frame = mk('div', 'page-frame'); frame.dataset.pid = page.id;
       frame.style.width = DISP_W + 'px';
@@ -594,8 +636,34 @@
     if (!displayFontB64) return '';
     return `@font-face{font-family:"EduDisplay";src:url(data:${displayFontMime};base64,${displayFontB64});font-weight:100 900;font-display:block;}`;
   }
+  async function inlineWebFonts(page) {
+    const used = {};
+    (page.elements || []).forEach((e) => {
+      if (e.kind !== 'text') return;
+      const w = WEBFONTS[e.font]; if (!w) return;
+      (used[e.font] = used[e.font] || new Set());
+      for (const ch of String(e.text || '')) used[e.font].add(ch);
+    });
+    let out = '';
+    for (const key in used) {
+      const w = WEBFONTS[key];
+      const text = Array.from(used[key]).join('') || ' ';
+      try {
+        const cssUrl = 'https://fonts.googleapis.com/css2?family=' + w.g + '&text=' + encodeURIComponent(text) + '&display=block';
+        let ff = await fetch(cssUrl).then((r) => r.text());
+        const urls = [...ff.matchAll(/url\(([^)]+)\)/g)].map((m) => m[1].replace(/['"]/g, ''));
+        for (const u of urls) {
+          const buf = new Uint8Array(await fetch(u).then((r) => r.arrayBuffer()));
+          let bin = ''; for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i]);
+          ff = ff.split(u).join('data:font/woff2;base64,' + btoa(bin));
+        }
+        out += ff + '\n';
+      } catch (e) { /* 取不到则回退系统字体，导出不中断 */ }
+    }
+    return out;
+  }
   async function pageToPng(page) {
-    const css = exportFontFace() + '\n' + (await getCSS());
+    const css = exportFontFace() + '\n' + (await inlineWebFonts(page)) + '\n' + (await getCSS());
     const inner = `<div class="page-card" data-platform="${state.platform}" style="width:${CARD_W}px;height:${CARD_H}px;transform:none;--cover-font:${coverFontStack()};">${buildCardHTML(page)}</div>`;
     const svg =
       `<svg xmlns="http://www.w3.org/2000/svg" width="${CARD_W}" height="${CARD_H}">` +
@@ -733,7 +801,7 @@
     $('#cv-color').addEventListener('input', () => { if (!cv.sel) return; cv.sel.color = $('#cv-color').value; const n = selNode(); if (n) n.style.color = cv.sel.color; save(); });
     $('#cv-bold').addEventListener('click', () => { if (!cv.sel) return; cv.sel.weight = (cv.sel.weight >= 700) ? 400 : 800; const n = selNode(); if (n) n.style.fontWeight = cv.sel.weight; save(); });
     $('#cv-align').addEventListener('click', () => { if (!cv.sel) return; cv.sel.align = ALIGNS[(ALIGNS.indexOf(cv.sel.align) + 1) % 3]; const n = selNode(); if (n) n.style.textAlign = cv.sel.align; save(); });
-    $('#cv-font').addEventListener('change', () => { if (!cv.sel) return; cv.sel.font = $('#cv-font').value; const n = selNode(); if (n) n.style.fontFamily = FONT_STACKS[cv.sel.font] || 'inherit'; save(); });
+    $('#cv-font').addEventListener('change', () => { if (!cv.sel) return; cv.sel.font = $('#cv-font').value; ensureWebFont(cv.sel.font); const n = selNode(); if (n) n.style.fontFamily = FONT_STACKS[cv.sel.font] || 'inherit'; save(); });
     $('#cv-lh').addEventListener('input', () => { if (!cv.sel) return; cv.sel.lh = num($('#cv-lh').value, 1.3); const n = selNode(); if (n) n.style.lineHeight = cv.sel.lh; save(); });
     $('#cv-ls').addEventListener('input', () => { if (!cv.sel) return; cv.sel.ls = num($('#cv-ls').value, 0); const n = selNode(); if (n) n.style.letterSpacing = cv.sel.ls + 'px'; save(); });
     $('#cv-front').addEventListener('click', () => { reorderSel(1); });
@@ -901,7 +969,7 @@
     $('#set-slogan-reset').addEventListener('click', () => { D().sloganSize = 24; D().sloganOffsetX = 0; D().sloganOffsetY = 0; slInit(); touch(); flash('已复原标语'); });
     const ft = $('#set-footer'); ft.value = D().footerNote; ft.addEventListener('input', () => { D().footerNote = ft.value; touch(); });
     const ftP = $('#set-footer-preset'); ftP.addEventListener('change', () => { const v = ftP.value; ftP.value = ''; if (v === '') return; const t = FOOTER_PRESETS[v] || ''; D().footerNote = t; ft.value = t; touch(); });
-    const fontSel = $('#set-font'); fontSel.value = D().coverFont; fontSel.addEventListener('change', () => { D().coverFont = fontSel.value; touch(); });
+    const fontSel = $('#set-font'); fontSel.value = D().coverFont; fontSel.addEventListener('change', () => { D().coverFont = fontSel.value; ensureWebFont(fontSel.value); touch(); });
 
     const recolor = $('#logo-recolor'); recolor.checked = D().logoRecolor !== false; recolor.addEventListener('change', () => { D().logoRecolor = recolor.checked; touch(); });
     bindUpload('#up-logo', async (data) => { D().logoData = data; const n = await imgNat(data); D().logoNatW = n.w; D().logoNatH = n.h; resetLogoAdjust(); if (!save()) flash('图太大，本地存不下；本次有效，刷新会丢'); renderPreview(); flash('logo 已更新，可点“裁剪/缩放/移动”调整'); });
@@ -922,6 +990,7 @@
     save(); // 持久化（含旧格式迁移到双 deck）
     document.documentElement.dataset.platform = state.platform;
     document.querySelectorAll('.plat-btn').forEach((b) => b.classList.toggle('is-active', b.dataset.platform === state.platform));
+    populateFontSelects();
     wire(); wireCanvas(); wireLogoEditor();
     $('#btn-copy-other').addEventListener('click', copyToOther);
     setUiColor(state.uiColor);
