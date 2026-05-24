@@ -71,9 +71,9 @@ summary::-webkit-details-marker { display: none; }
 .panel[open] > summary::before { content: "▾ "; }
 .panel-body { margin-top: 12px; }
 
-.field-label { display: block; font-size: 13px; font-weight: 600; color: #6b6b70; margin: 10px 0 6px; }
+.field-label { display: block; font-size: 13px; font-weight: 600; color: var(--ui-accent); margin: 10px 0 6px; }
 .ta, .inp {
-  width: 100%; border: 1px solid rgba(0,0,0,.14); border-radius: 10px;
+  width: 100%; border: 1px solid color-mix(in srgb, var(--ui-accent) 45%, #cfcfd6); border-radius: 10px;
   padding: 9px 11px; font-size: 14px; font-family: inherit; color: #1c1c1e; background: #fff; resize: vertical;
 }
 .ta:focus, .inp:focus { outline: none; border-color: var(--ui-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ui-accent) 16%, transparent); }
@@ -122,7 +122,8 @@ summary::-webkit-details-marker { display: none; }
   padding: 30px;
 }
 .frame { box-sizing: border-box; width: 100%; height: 100%; display: flex; flex-direction: column; }
-[data-platform="xls"] .frame { border: 7px solid var(--accent); border-radius: 22px; padding: 26px 28px; }
+[data-platform="xls"] .page-card { padding: 12px; }
+[data-platform="xls"] .frame { border: 12px solid var(--accent); border-radius: 18px; padding: 22px 24px; }
 [data-platform="xhs"] .frame { border: 0; padding: 0; }
 
 /* 报头 */
@@ -132,7 +133,7 @@ summary::-webkit-details-marker { display: none; }
   clip-path: polygon(50% 0, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0 50%, 40% 40%); }
 .logo-img-plain { height: 48px; width: auto; max-width: 280px; object-fit: contain; display: block; }
 .logo-box { display: inline-block; }
-.lg-inline { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 8px; font-size: 12px; color: #6b6b70; }
+.lg-inline { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 8px; font-size: 12px; color: var(--ui-accent); font-weight: 600; }
 .lg-mini { width: 78px; }
 
 /* logo 调整器 */
@@ -219,7 +220,7 @@ summary::-webkit-details-marker { display: none; }
 .cv-modal-inner { background: #fff; border-radius: 16px; padding: 14px; box-shadow: 0 20px 60px rgba(0,0,0,.35); max-width: 96vw; max-height: 96vh; display: flex; flex-direction: column; gap: 10px; }
 .cv-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .cv-sel-tools { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; padding-left: 8px; border-left: 1px solid rgba(0,0,0,.1); }
-.cv-tool-lbl { font-size: 13px; color: #6b6b70; }
+.cv-tool-lbl { font-size: 13px; color: var(--ui-accent); font-weight: 600; }
 .cv-num { width: 62px; border: 1px solid rgba(0,0,0,.18); border-radius: 8px; padding: 5px 8px; font-size: 13px; }
 .cv-font { font-size: 13px; padding: 4px 6px; border-radius: 8px; border: 1px solid rgba(0,0,0,.18); max-width: 108px; background: #fff; }
 .cv-color { width: 34px; height: 30px; border: 1px solid rgba(0,0,0,.18); border-radius: 8px; background: #fff; padding: 2px; cursor: pointer; }

@@ -104,7 +104,7 @@
   function newDeck() {
     return {
       pages: [defaultPage('cover')],
-      brandLabel: '签证信息', brandLabelSize: 24, footerNote: DEFAULT_FOOTER, coverFont: 'hei',
+      brandLabel: '签证信息', brandLabelSize: 24, brandLabelOffsetX: 0, brandLabelOffsetY: 0, footerNote: DEFAULT_FOOTER, coverFont: 'hei',
       sloganSize: 24, sloganOffsetX: 0, sloganOffsetY: 0,
       logoData: null, logoNatW: 0, logoNatH: 0, logoRecolor: true,
       logoScale: 1, logoOffsetX: 0, logoOffsetY: 0, logoCrop: { x: 0, y: 0, w: 1, h: 1 },
@@ -116,6 +116,8 @@
     if (!Array.isArray(d.pages)) d.pages = [defaultPage('cover')];
     if (typeof d.brandLabel !== 'string') d.brandLabel = '签证信息';
     if (typeof d.brandLabelSize !== 'number') d.brandLabelSize = 24;
+    if (typeof d.brandLabelOffsetX !== 'number') d.brandLabelOffsetX = 0;
+    if (typeof d.brandLabelOffsetY !== 'number') d.brandLabelOffsetY = 0;
     if (typeof d.footerNote !== 'string') d.footerNote = DEFAULT_FOOTER;
     if (!FONT_STACKS[d.coverFont]) d.coverFont = 'hei';
     if (typeof d.sloganSize !== 'number') d.sloganSize = 24;
@@ -203,7 +205,7 @@
           <div class="mh-right" style="transform:translate(${D().sloganOffsetX || 0}px,${D().sloganOffsetY || 0}px)"><div class="mh-line"></div><div class="mh-slogan" style="font-size:${D().sloganSize || 24}px">LIGHT UP THE FUTURE!</div></div>
         </div>`;
     }
-    return `<div class="masthead mh-xls">${logoMarkup()}${D().brandLabel ? `<div class="brand-label" style="font-size:${D().brandLabelSize || 24}px">${esc(D().brandLabel)}</div>` : ''}</div>`;
+    return `<div class="masthead mh-xls">${logoMarkup()}${D().brandLabel ? `<div class="brand-label" style="font-size:${D().brandLabelSize || 24}px;transform:translate(${D().brandLabelOffsetX || 0}px,${D().brandLabelOffsetY || 0}px)">${esc(D().brandLabel)}</div>` : ''}</div>`;
   }
 
   function buildCardHTML(page) {
@@ -771,6 +773,8 @@
     const d = D();
     $('#set-label').value = d.brandLabel;
     $('#set-label-size').value = d.brandLabelSize;
+    $('#set-label-x').value = d.brandLabelOffsetX;
+    $('#set-label-y').value = d.brandLabelOffsetY;
     $('#set-footer').value = d.footerNote;
     $('#set-font').value = d.coverFont;
     $('#logo-recolor').checked = d.logoRecolor !== false;
@@ -887,6 +891,9 @@
     $('#btn-ai-fill').addEventListener('click', onFill);
     const lbl = $('#set-label'); lbl.value = D().brandLabel; lbl.addEventListener('input', () => { D().brandLabel = lbl.value; touch(); });
     const lblSize = $('#set-label-size'); lblSize.value = D().brandLabelSize; lblSize.addEventListener('input', () => { D().brandLabelSize = num(lblSize.value, 24); touch(); });
+    $('#set-label-x').addEventListener('input', () => { D().brandLabelOffsetX = num($('#set-label-x').value, 0); touch(); });
+    $('#set-label-y').addEventListener('input', () => { D().brandLabelOffsetY = num($('#set-label-y').value, 0); touch(); });
+    $('#set-label-reset').addEventListener('click', () => { D().brandLabelOffsetX = 0; D().brandLabelOffsetY = 0; $('#set-label-x').value = 0; $('#set-label-y').value = 0; touch(); flash('已复原栏目名位置'); });
     const slInit = () => { $('#set-slogan-size').value = D().sloganSize; $('#set-slogan-x').value = D().sloganOffsetX; $('#set-slogan-y').value = D().sloganOffsetY; };
     slInit();
     const slSync = (id, key) => $(id).addEventListener('input', () => { D()[key] = num($(id).value, key === 'sloganSize' ? 24 : 0); touch(); });
