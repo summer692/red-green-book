@@ -147,16 +147,25 @@
     return defaultPage('canvas');
   }
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
-  function freshState() { return { platform: 'xhs', decks: { xhs: newDeck(), xls: newDeck() } }; }
+  function freshState() { return { platform: 'xhs', uiColor: 'alipay', decks: { xhs: newDeck(), xls: newDeck() } }; }
   function loadState() {
     try {
       const s = JSON.parse(localStorage.getItem(LS_KEY));
       if (!s || typeof s !== 'object') return freshState();
       const platform = (s.platform === 'xls') ? 'xls' : 'xhs';
-      if (s.decks && s.decks.xhs && s.decks.xls) return { platform, decks: { xhs: normalizeDeck(s.decks.xhs), xls: normalizeDeck(s.decks.xls) } };
-      if (Array.isArray(s.pages)) { const d = normalizeDeck(s); return { platform, decks: { xhs: d, xls: clone(d) } }; } // 旧版单 deck → 两平台各一份（互不联动）
+      const uiColor = typeof s.uiColor === 'string' ? s.uiColor : 'alipay';
+      if (s.decks && s.decks.xhs && s.decks.xls) return { platform, uiColor, decks: { xhs: normalizeDeck(s.decks.xhs), xls: normalizeDeck(s.decks.xls) } };
+      if (Array.isArray(s.pages)) { const d = normalizeDeck(s); return { platform, uiColor, decks: { xhs: d, xls: clone(d) } }; } // 旧版单 deck → 两平台各一份（互不联动）
       return freshState();
     } catch { return freshState(); }
+  }
+  const UI_COLORS = { alipay: '#1677FF', wechat: '#07C160', orange: '#FF7A1A', bw: '#1A1A1A', pink: '#FF4D8D' };
+  function setUiColor(k) {
+    if (!UI_COLORS[k]) k = 'alipay';
+    state.uiColor = k;
+    document.documentElement.style.setProperty('--ui-accent', UI_COLORS[k]);
+    document.querySelectorAll('.ui-color').forEach((b) => b.classList.toggle('is-active', b.dataset.ui === k));
+    save();
   }
   function D() { return state.decks[state.platform]; }
   function imgNat(url) { return new Promise((res) => { const i = new Image(); i.onload = () => res({ w: i.naturalWidth, h: i.naturalHeight }); i.onerror = () => res({ w: 0, h: 0 }); i.src = url; }); }
@@ -868,6 +877,7 @@
   // ---------------- 绑定 / 初始化 ----------------
   function wire() {
     document.querySelectorAll('.plat-btn').forEach((b) => b.addEventListener('click', () => setPlatform(b.dataset.platform)));
+    document.querySelectorAll('.ui-color').forEach((b) => b.addEventListener('click', () => setUiColor(b.dataset.ui)));
     document.querySelectorAll('[data-add]').forEach((b) => b.addEventListener('click', () => { D().pages.push(defaultPage(b.dataset.add, deckOpts())); restructure(); }));
     $('#btn-download-all').addEventListener('click', exportAll);
     $('#btn-ai-open').addEventListener('click', onOpenClaude);
@@ -905,6 +915,7 @@
     document.querySelectorAll('.plat-btn').forEach((b) => b.classList.toggle('is-active', b.dataset.platform === state.platform));
     wire(); wireCanvas(); wireLogoEditor();
     $('#btn-copy-other').addEventListener('click', copyToOther);
+    setUiColor(state.uiColor);
     refreshSettingsUI();
     renderEditors(); renderPreview(); loadAssets();
   }

@@ -6,6 +6,7 @@ html, body {
   color: #1c1c1e; background: #f3f3f5;
   -webkit-font-smoothing: antialiased;
 }
+input[type="range"], input[type="checkbox"], input[type="color"], select { accent-color: var(--ui-accent); }
 
 /* ---------------- 顶栏 ---------------- */
 .topbar {
@@ -31,7 +32,11 @@ html, body {
   transition: all .18s cubic-bezier(.25,.46,.45,.94);
 }
 .plat-btn.is-active { background: #fff; color: var(--ui-accent); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
-.topbar-actions { margin-left: auto; }
+.ui-colors { margin-left: auto; display: inline-flex; gap: 7px; align-items: center; }
+.ui-color { width: 20px; height: 20px; border-radius: 50%; border: 0; padding: 0; cursor: pointer; background: var(--c); box-shadow: 0 0 0 1px rgba(0,0,0,.15); transition: transform .12s ease; }
+.ui-color:hover { transform: scale(1.12); }
+.ui-color.is-active { box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--c); }
+.topbar-actions { margin-left: 12px; }
 
 .btn {
   border: 1px solid rgba(0,0,0,.12); background: #fff; color: #1c1c1e;
