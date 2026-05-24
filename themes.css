@@ -18,12 +18,12 @@
   font-display: swap;
 }
 
-/* ---------- 小红书：深藏蓝单色（封面色号 #191970） ---------- */
+/* ---------- 小红书：报头黑色 + 大字藏蓝（封面色号 #191970） ---------- */
 [data-platform="xhs"] {
   --ui-accent: #191970;
 
-  --logo-color: #191970;
-  --slogan-color: #191970;
+  --logo-color: #1a1a1a;
+  --slogan-color: #1a1a1a;
   --accent: #191970;
   --heading: #191970;
   --title-color: #191970;

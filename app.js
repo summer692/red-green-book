@@ -61,7 +61,7 @@
     }
   }
   const DEF_CROP = { x: 0, y: 0, w: 1, h: 1 };
-  function freshState() { return { platform: 'xhs', brandLabel: '签证信息', footerNote: DEFAULT_FOOTER, coverFont: 'hei', brandLabelSize: 24, logoData: null, logoRecolor: true, logoNatW: 0, logoNatH: 0, logoScale: 1, logoOffsetX: 0, logoOffsetY: 0, logoCrop: { x: 0, y: 0, w: 1, h: 1 }, memojiData: null, memojiScale: 1, memojiOffsetX: 0, memojiOffsetY: 0, pages: [defaultPage('cover')] }; }
+  function freshState() { return { platform: 'xhs', brandLabel: '签证信息', footerNote: DEFAULT_FOOTER, coverFont: 'hei', brandLabelSize: 24, sloganSize: 24, sloganOffsetX: 0, sloganOffsetY: 0, logoData: null, logoRecolor: true, logoNatW: 0, logoNatH: 0, logoScale: 1, logoOffsetX: 0, logoOffsetY: 0, logoCrop: { x: 0, y: 0, w: 1, h: 1 }, memojiData: null, memojiScale: 1, memojiOffsetX: 0, memojiOffsetY: 0, pages: [defaultPage('cover')] }; }
   function loadState() {
     try {
       const s = JSON.parse(localStorage.getItem(LS_KEY));
@@ -71,6 +71,9 @@
       if (typeof s.footerNote !== 'string') s.footerNote = DEFAULT_FOOTER;
       if (!FONT_STACKS[s.coverFont]) s.coverFont = 'hei';
       if (typeof s.brandLabelSize !== 'number') s.brandLabelSize = 24;
+      if (typeof s.sloganSize !== 'number') s.sloganSize = 24;
+      if (typeof s.sloganOffsetX !== 'number') s.sloganOffsetX = 0;
+      if (typeof s.sloganOffsetY !== 'number') s.sloganOffsetY = 0;
       if (typeof s.logoData !== 'string') s.logoData = null;
       if (typeof s.logoRecolor !== 'boolean') s.logoRecolor = true;
       if (typeof s.logoNatW !== 'number') s.logoNatW = 0;
@@ -118,7 +121,7 @@
     if (state.platform === 'xhs') {
       return `<div class="masthead mh-xhs">
           <div class="mh-left">${logoMarkup()}<div class="mh-bars"><span></span><span></span></div></div>
-          <div class="mh-right"><div class="mh-line"></div><div class="mh-slogan">LIGHT UP THE FUTURE!</div></div>
+          <div class="mh-right" style="transform:translate(${state.sloganOffsetX || 0}px,${state.sloganOffsetY || 0}px)"><div class="mh-line"></div><div class="mh-slogan" style="font-size:${state.sloganSize || 24}px">LIGHT UP THE FUTURE!</div></div>
         </div>`;
     }
     return `<div class="masthead mh-xls">${logoMarkup()}${state.brandLabel ? `<div class="brand-label" style="font-size:${state.brandLabelSize || 24}px">${esc(state.brandLabel)}</div>` : ''}</div>`;
@@ -730,6 +733,11 @@
     $('#btn-ai-fill').addEventListener('click', onFill);
     const lbl = $('#set-label'); lbl.value = state.brandLabel; lbl.addEventListener('input', () => { state.brandLabel = lbl.value; touch(); });
     const lblSize = $('#set-label-size'); lblSize.value = state.brandLabelSize; lblSize.addEventListener('input', () => { state.brandLabelSize = num(lblSize.value, 24); touch(); });
+    const slInit = () => { $('#set-slogan-size').value = state.sloganSize; $('#set-slogan-x').value = state.sloganOffsetX; $('#set-slogan-y').value = state.sloganOffsetY; };
+    slInit();
+    const slSync = (id, key) => $(id).addEventListener('input', () => { state[key] = num($(id).value, key === 'sloganSize' ? 24 : 0); touch(); });
+    slSync('#set-slogan-size', 'sloganSize'); slSync('#set-slogan-x', 'sloganOffsetX'); slSync('#set-slogan-y', 'sloganOffsetY');
+    $('#set-slogan-reset').addEventListener('click', () => { state.sloganSize = 24; state.sloganOffsetX = 0; state.sloganOffsetY = 0; slInit(); touch(); flash('已复原标语'); });
     const ft = $('#set-footer'); ft.value = state.footerNote; ft.addEventListener('input', () => { state.footerNote = ft.value; touch(); });
     const fontSel = $('#set-font'); fontSel.value = state.coverFont; fontSel.addEventListener('change', () => { state.coverFont = fontSel.value; touch(); });
 

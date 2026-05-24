@@ -34,6 +34,13 @@
           <label class="field-label" for="set-label">栏目名（小绿书报头用，如 签证信息 / 院校信息）</label>
           <input id="set-label" class="inp" type="text" />
           <div class="lg-inline"><span>栏目名字号</span><input id="set-label-size" type="range" min="14" max="44" step="1" class="lg-mini" /></div>
+          <label class="field-label">小红书标语 LIGHT UP THE FUTURE! 字号 / 位置</label>
+          <div class="lg-inline">
+            <span>字号</span><input id="set-slogan-size" type="range" min="14" max="40" step="1" class="lg-mini" />
+            <span>水平</span><input id="set-slogan-x" type="range" min="-160" max="80" step="2" class="lg-mini" />
+            <span>垂直</span><input id="set-slogan-y" type="range" min="-30" max="130" step="2" class="lg-mini" />
+            <button id="set-slogan-reset" class="btn btn-sm">复原</button>
+          </div>
           <label class="field-label" for="set-footer">页脚备注（内容页底部，可空）</label>
           <textarea id="set-footer" class="ta" rows="2"></textarea>
           <label class="field-label" for="set-font">封面字体</label>
