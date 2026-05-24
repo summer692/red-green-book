@@ -7,6 +7,14 @@
   const TYPE_LABEL = { cover: '封面', bilingual: '双语分析', table: '排名表格', list: '列表', policy: '政策', text: '文本', canvas: '自由画布' };
   const ALIGNS = ['left', 'center', 'right'];
   const DEFAULT_FOOTER = '备注：本文所提供的信息均来源于大学官网。申请时请务必以学校官网公布的最新信息为准。';
+  const FOOTER_PRESETS = {
+    default: '备注：本文所提供的信息均来源于大学官网。申请时请务必以学校官网公布的最新信息为准。',
+    visa: '备注：本文信息仅供参考，最终以官方签证政策及学校官网公布为准。',
+    admit: '数据来源：各校官网 / 官方报告，仅供参考，具体以官网最新公布为准。',
+    qs: '数据来源：QS World University Rankings by Subject。仅供参考。',
+    short: '* 信息来源于官网，仅供参考。',
+    clear: '',
+  };
   // 注意：用单引号包字体名，避免破坏导出时的 style="…" 双引号属性
   // 这些都是 Mac 自带字体（中英混排时英文走前面的字体、中文自动回退到后面的黑/宋体）
   const FONT_STACKS = {
@@ -873,6 +881,7 @@
     slSync('#set-slogan-size', 'sloganSize'); slSync('#set-slogan-x', 'sloganOffsetX'); slSync('#set-slogan-y', 'sloganOffsetY');
     $('#set-slogan-reset').addEventListener('click', () => { D().sloganSize = 24; D().sloganOffsetX = 0; D().sloganOffsetY = 0; slInit(); touch(); flash('已复原标语'); });
     const ft = $('#set-footer'); ft.value = D().footerNote; ft.addEventListener('input', () => { D().footerNote = ft.value; touch(); });
+    const ftP = $('#set-footer-preset'); ftP.addEventListener('change', () => { const v = ftP.value; ftP.value = ''; if (v === '') return; const t = FOOTER_PRESETS[v] || ''; D().footerNote = t; ft.value = t; touch(); });
     const fontSel = $('#set-font'); fontSel.value = D().coverFont; fontSel.addEventListener('change', () => { D().coverFont = fontSel.value; touch(); });
 
     const recolor = $('#logo-recolor'); recolor.checked = D().logoRecolor !== false; recolor.addEventListener('change', () => { D().logoRecolor = recolor.checked; touch(); });
