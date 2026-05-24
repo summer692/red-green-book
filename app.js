@@ -779,6 +779,8 @@
     $('#set-slogan-y').value = d.sloganOffsetY;
     const other = state.platform === 'xhs' ? '小绿书' : '小红书';
     const cp = $('#btn-copy-other'); if (cp) cp.textContent = '复制内容到' + other;
+    $('#xls-only').style.display = state.platform === 'xls' ? '' : 'none';
+    $('#xhs-only').style.display = state.platform === 'xhs' ? '' : 'none';
   }
   function copyToOther() {
     const otherKey = state.platform === 'xhs' ? 'xls' : 'xhs';

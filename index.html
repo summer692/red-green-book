@@ -41,15 +41,19 @@
         <div class="panel-body">
           <p class="hint" style="margin-top:0">小红书 / 小绿书 各自独立编辑（内容、logo、字体、位置互不影响）。</p>
           <div class="btn-row" style="margin-top:0"><button id="btn-copy-other" class="btn btn-sm">复制内容到另一平台</button></div>
-          <label class="field-label" for="set-label">信息分类（签证信息 / 申请信息 / 院校信息）</label>
-          <input id="set-label" class="inp" type="text" />
-          <div class="lg-inline"><span>栏目名字号</span><input id="set-label-size" type="range" min="14" max="44" step="1" class="lg-mini" /></div>
-          <label class="field-label">小红书标语 LIGHT UP THE FUTURE! 字号 / 位置</label>
-          <div class="lg-inline">
-            <span>字号</span><input id="set-slogan-size" type="range" min="14" max="40" step="1" class="lg-mini" />
-            <span>水平</span><input id="set-slogan-x" type="range" min="-160" max="80" step="2" class="lg-mini" />
-            <span>垂直</span><input id="set-slogan-y" type="range" min="-30" max="130" step="2" class="lg-mini" />
-            <button id="set-slogan-reset" class="btn btn-sm">复原</button>
+          <div id="xls-only">
+            <label class="field-label" for="set-label">信息分类（签证信息 / 申请信息 / 院校信息）</label>
+            <input id="set-label" class="inp" type="text" />
+            <div class="lg-inline"><span>栏目名字号</span><input id="set-label-size" type="range" min="14" max="44" step="1" class="lg-mini" /></div>
+          </div>
+          <div id="xhs-only">
+            <label class="field-label">小红书标语 LIGHT UP THE FUTURE! 字号 / 位置</label>
+            <div class="lg-inline">
+              <span>字号</span><input id="set-slogan-size" type="range" min="14" max="40" step="1" class="lg-mini" />
+              <span>水平</span><input id="set-slogan-x" type="range" min="-160" max="80" step="2" class="lg-mini" />
+              <span>垂直</span><input id="set-slogan-y" type="range" min="-30" max="130" step="2" class="lg-mini" />
+              <button id="set-slogan-reset" class="btn btn-sm">复原</button>
+            </div>
           </div>
           <label class="field-label" for="set-footer">页脚备注（内容页底部，可空）</label>
           <select id="set-footer-preset" class="inp" style="margin-bottom:6px">
