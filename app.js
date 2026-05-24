@@ -85,10 +85,10 @@
     }
     return els;
   }
-  function presetPage(type, opts) { return { id: uid(), type: 'canvas', noFooter: type === 'cover', elements: elementsFromContent(type, templateDefault(type), opts) }; }
+  function presetPage(type, opts) { return { id: uid(), type: 'canvas', preset: type, noFooter: type === 'cover', elements: elementsFromContent(type, templateDefault(type), opts) }; }
   function defaultPage(type, opts) {
     if (type === 'table') return { id: uid(), type: 'table', title: '录取数据一览', columns: ['专业', '中国学生录取', '全部录取', '申请要求'], rows: [['', '', '', ''], ['', '', '', '']] };
-    if (type === 'canvas') return { id: uid(), type: 'canvas', elements: [{ id: uid(), kind: 'text', x: 0.08, y: 0.1, w: 0.84, text: '双击编辑文字', size: 40, color: '', weight: 800, align: 'left', font: 'hei' }] };
+    if (type === 'canvas') return { id: uid(), type: 'canvas', preset: 'canvas', elements: [{ id: uid(), kind: 'text', x: 0.08, y: 0.1, w: 0.84, text: '双击编辑文字', size: 40, color: '', weight: 800, align: 'left', font: 'hei' }] };
     return presetPage(type, opts || {});
   }
   function deckOpts() { return { coverFont: D().coverFont, memojiData: D().memojiData }; }
@@ -131,10 +131,10 @@
   // 旧模板页 → 画布页（保留内容）；表格/画布页保持
   function migratePage(pg, d) {
     if (!pg || typeof pg !== 'object') return defaultPage('canvas');
-    if (pg.type === 'canvas') { if (!Array.isArray(pg.elements)) pg.elements = []; return pg; }
+    if (pg.type === 'canvas') { if (!Array.isArray(pg.elements)) pg.elements = []; if (typeof pg.preset !== 'string') pg.preset = 'canvas'; return pg; }
     if (pg.type === 'table') { if (!Array.isArray(pg.columns)) pg.columns = ['列1', '列2']; if (!Array.isArray(pg.rows)) pg.rows = []; if (typeof pg.title !== 'string') pg.title = ''; return pg; }
     if (['cover', 'bilingual', 'list', 'policy', 'text'].includes(pg.type)) {
-      return { id: pg.id || uid(), type: 'canvas', noFooter: pg.type === 'cover', elements: elementsFromContent(pg.type, pg, { coverFont: d.coverFont, memojiData: d.memojiData }) };
+      return { id: pg.id || uid(), type: 'canvas', preset: pg.type, noFooter: pg.type === 'cover', elements: elementsFromContent(pg.type, pg, { coverFont: d.coverFont, memojiData: d.memojiData }) };
     }
     return defaultPage('canvas');
   }
@@ -262,17 +262,29 @@
     list.innerHTML = '';
     const scale = DISP_W / CARD_W;
     D().pages.forEach((page, i) => {
-      const frame = mk('div', 'page-frame');
+      const frame = mk('div', 'page-frame'); frame.dataset.pid = page.id;
       frame.style.width = DISP_W + 'px';
       frame.style.height = (CARD_H * scale) + 'px';
       const card = buildCard(page);
       card.style.transform = `scale(${scale})`;
       frame.appendChild(card);
       const num = mk('div', 'page-pagenum'); num.textContent = (i + 1) + '/' + D().pages.length; frame.appendChild(num);
-      const dl = mk('button', 'btn btn-sm dl-this'); dl.textContent = '下载'; dl.addEventListener('click', () => exportPage(i)); frame.appendChild(dl);
+      const dl = mk('button', 'btn btn-sm dl-this'); dl.textContent = '下载'; dl.addEventListener('click', (e) => { e.stopPropagation(); exportPage(i); }); frame.appendChild(dl);
+      frame.addEventListener('click', () => selectPage(page.id, 'editor'));
       list.appendChild(frame);
     });
     $('#preview-empty').style.display = D().pages.length ? 'none' : 'block';
+    applySelection();
+  }
+  let selectedPageId = null;
+  function selectPage(id, scrollTarget) {
+    selectedPageId = id; applySelection();
+    if (scrollTarget === 'editor') { const el = document.querySelector('.pe-card[data-pid="' + id + '"]'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+    else if (scrollTarget === 'preview') { const el = document.querySelector('.page-frame[data-pid="' + id + '"]'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+  }
+  function applySelection() {
+    document.querySelectorAll('.pe-card').forEach((c) => c.classList.toggle('is-selected', c.dataset.pid === selectedPageId));
+    document.querySelectorAll('.page-frame').forEach((f) => f.classList.toggle('is-selected', f.dataset.pid === selectedPageId));
   }
 
   // ---------------- 编辑器 ----------------
@@ -466,18 +478,20 @@
   function renderEditors() {
     const root = $('#page-editors'); root.innerHTML = '';
     D().pages.forEach((page, i) => {
-      const card = mk('div', 'pe-card');
+      const card = mk('div', 'pe-card'); card.dataset.pid = page.id;
       const head = mk('div', 'pe-head');
-      const type = mk('span', 'pe-type'); type.innerHTML = `<span class="dot"></span>${TYPE_LABEL[page.type] || page.type}`;
+      const type = mk('span', 'pe-type'); type.innerHTML = `<span class="dot"></span>${TYPE_LABEL[page.preset || page.type] || page.type}`;
       const idx = mk('span', 'pe-idx'); idx.textContent = '第 ' + (i + 1) + ' 页';
       const sp = mk('span', 'spacer');
-      const up = mk('button', 'icon-btn'); up.textContent = '↑'; up.title = '上移'; up.disabled = i === 0; up.addEventListener('click', () => move(i, -1));
-      const dn = mk('button', 'icon-btn'); dn.textContent = '↓'; dn.title = '下移'; dn.disabled = i === D().pages.length - 1; dn.addEventListener('click', () => move(i, 1));
+      const up = mk('button', 'icon-btn'); up.textContent = '↑'; up.title = '上移'; up.disabled = i === 0; up.addEventListener('click', (e) => { e.stopPropagation(); move(i, -1); });
+      const dn = mk('button', 'icon-btn'); dn.textContent = '↓'; dn.title = '下移'; dn.disabled = i === D().pages.length - 1; dn.addEventListener('click', (e) => { e.stopPropagation(); move(i, 1); });
       const del = mk('button', 'icon-btn btn-danger'); del.textContent = '删除';
-      del.addEventListener('click', () => { if (confirm('删除第 ' + (i + 1) + ' 页？')) { D().pages.splice(i, 1); restructure(); } });
+      del.addEventListener('click', (e) => { e.stopPropagation(); if (confirm('删除第 ' + (i + 1) + ' 页？')) { D().pages.splice(i, 1); restructure(); } });
       head.append(type, idx, sp, up, dn, del);
+      head.addEventListener('click', () => selectPage(page.id, 'preview'));
       card.appendChild(head); card.appendChild(editorBody(page)); root.appendChild(card);
     });
+    applySelection();
   }
 
   // ---------------- AI（深链接 + 复制提示词） ----------------
@@ -527,14 +541,14 @@
       const rows = Array.isArray(p.rows) ? p.rows.map((r) => { const a2 = toStrArr(r, []); while (a2.length < cols.length) a2.push(''); return a2.slice(0, cols.length); }) : [];
       return { id: uid(), type: 'table', title: str(p.title, ''), columns: cols, rows };
     }
-    if (p.type === 'canvas') return { id: uid(), type: 'canvas', elements: Array.isArray(p.elements) ? p.elements.map(normEl).filter(Boolean) : [] };
+    if (p.type === 'canvas') return { id: uid(), type: 'canvas', preset: 'canvas', elements: Array.isArray(p.elements) ? p.elements.map(normEl).filter(Boolean) : [] };
     const c = {};
     if (p.type === 'cover') { c.title = str(p.title, ''); c.showMemoji = (typeof p.showMemoji === 'boolean') ? p.showMemoji : true; }
     else if (p.type === 'bilingual') { c.heading = str(p.heading, ''); c.en = str(p.en, ''); c.cn = str(p.cn, ''); c.actionTitle = str(p.actionTitle, '要怎么做?'); c.steps = toStrArr(p.steps, []); }
     else if (p.type === 'list') { c.heading = str(p.heading, ''); c.items = Array.isArray(p.items) ? p.items.map((it) => ({ name: str(it && it.name, ''), note: str(it && it.note, '') })) : []; }
     else if (p.type === 'policy') { c.title = str(p.title, ''); c.points = toStrArr(p.points, []); }
     else if (p.type === 'text') { c.title = str(p.title, ''); c.body = str(p.body, ''); }
-    return { id: uid(), type: 'canvas', noFooter: p.type === 'cover', elements: elementsFromContent(p.type, c, deckOpts()) };
+    return { id: uid(), type: 'canvas', preset: p.type, noFooter: p.type === 'cover', elements: elementsFromContent(p.type, c, deckOpts()) };
   }
   function normEl(e) {
     if (!e) return null;
