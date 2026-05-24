@@ -253,7 +253,8 @@
     if (e.kind === 'image') return `<div class="cv-el cv-img" style="${pos}"><img src="${e.src}" alt="" /></div>`;
     const font = FONT_STACKS[e.font] || 'inherit';
     const color = e.color ? e.color : 'var(--ink)';
-    return `<div class="cv-el cv-text" style="${pos}font-size:${e.size}px;color:${color};font-weight:${e.weight || 700};text-align:${e.align || 'left'};font-family:${font};">${esc(e.text)}</div>`;
+    const lh = e.lh || 1.3, ls = e.ls || 0;
+    return `<div class="cv-el cv-text" style="${pos}font-size:${e.size}px;color:${color};font-weight:${e.weight || 700};text-align:${e.align || 'left'};font-family:${font};line-height:${lh};letter-spacing:${ls}px;">${esc(e.text)}</div>`;
   }
 
   // ---------------- 预览 ----------------
@@ -553,7 +554,7 @@
   function normEl(e) {
     if (!e) return null;
     if (e.kind === 'image') { if (!e.src) return null; return { id: uid(), kind: 'image', x: num(e.x, 0.1), y: num(e.y, 0.1), w: num(e.w, 0.5), src: String(e.src) }; }
-    return { id: uid(), kind: 'text', x: num(e.x, 0.1), y: num(e.y, 0.1), w: num(e.w, 0.8), text: str(e.text, ''), size: num(e.size, 36), color: str(e.color, ''), weight: num(e.weight, 700), align: ALIGNS.includes(e.align) ? e.align : 'left', font: FONT_STACKS[e.font] ? e.font : 'hei' };
+    return { id: uid(), kind: 'text', x: num(e.x, 0.1), y: num(e.y, 0.1), w: num(e.w, 0.8), text: str(e.text, ''), size: num(e.size, 36), color: str(e.color, ''), weight: num(e.weight, 700), align: ALIGNS.includes(e.align) ? e.align : 'left', font: FONT_STACKS[e.font] ? e.font : 'hei', lh: num(e.lh, 1.3), ls: num(e.ls, 0) };
   }
   function onFill() {
     const text = $('#ai-result').value; if (!text.trim()) { alert('先把 Claude 返回的 JSON 粘到下面的框里'); return; }
@@ -640,6 +641,7 @@
       node.style.fontSize = e.size + 'px'; node.style.color = e.color || 'var(--ink)';
       node.style.fontWeight = e.weight || 700; node.style.textAlign = e.align || 'left';
       node.style.fontFamily = FONT_STACKS[e.font] || 'inherit';
+      node.style.lineHeight = e.lh || 1.3; node.style.letterSpacing = (e.ls || 0) + 'px';
       const span = mk('span', 'cv-textspan'); span.textContent = e.text; node.appendChild(span);
       node.addEventListener('dblclick', () => startEditText(node, e));
     }
@@ -695,13 +697,13 @@
     if (!cv || !cv.sel) { tools.hidden = true; return; }
     tools.hidden = false;
     const isText = cv.sel.kind === 'text';
-    ['#cv-size', '#cv-font', '#cv-color', '#cv-bold', '#cv-align'].forEach((s) => { $(s).style.display = isText ? '' : 'none'; });
-    document.querySelector('.cv-tool-lbl').style.display = isText ? '' : 'none';
-    if (isText) { $('#cv-size').value = cv.sel.size; $('#cv-color').value = cv.sel.color || '#191970'; $('#cv-font').value = FONT_STACKS[cv.sel.font] ? cv.sel.font : 'hei'; }
+    ['#cv-size', '#cv-font', '#cv-lh', '#cv-ls', '#cv-color', '#cv-bold', '#cv-align'].forEach((s) => { $(s).style.display = isText ? '' : 'none'; });
+    document.querySelectorAll('.cv-tool-lbl').forEach((l) => { l.style.display = isText ? '' : 'none'; });
+    if (isText) { $('#cv-size').value = cv.sel.size; $('#cv-color').value = cv.sel.color || '#191970'; $('#cv-font').value = FONT_STACKS[cv.sel.font] ? cv.sel.font : 'hei'; $('#cv-lh').value = cv.sel.lh || 1.3; $('#cv-ls').value = cv.sel.ls || 0; }
   }
   function wireCanvas() {
     $('#cv-add-text').addEventListener('click', () => {
-      const e = { id: uid(), kind: 'text', x: 0.1, y: 0.12, w: 0.8, text: '新文字', size: 40, color: '', weight: 800, align: 'left', font: D().coverFont || 'hei' };
+      const e = { id: uid(), kind: 'text', x: 0.1, y: 0.12, w: 0.8, text: '新文字', size: 40, color: '', weight: 800, align: 'left', font: D().coverFont || 'hei', lh: 1.3, ls: 0 };
       cv.page.elements.push(e); rebuildCanvasEls(); selectEl(e); save();
     });
     bindUpload('#cv-add-img', (data) => {
@@ -713,6 +715,8 @@
     $('#cv-bold').addEventListener('click', () => { if (!cv.sel) return; cv.sel.weight = (cv.sel.weight >= 700) ? 400 : 800; const n = selNode(); if (n) n.style.fontWeight = cv.sel.weight; save(); });
     $('#cv-align').addEventListener('click', () => { if (!cv.sel) return; cv.sel.align = ALIGNS[(ALIGNS.indexOf(cv.sel.align) + 1) % 3]; const n = selNode(); if (n) n.style.textAlign = cv.sel.align; save(); });
     $('#cv-font').addEventListener('change', () => { if (!cv.sel) return; cv.sel.font = $('#cv-font').value; const n = selNode(); if (n) n.style.fontFamily = FONT_STACKS[cv.sel.font] || 'inherit'; save(); });
+    $('#cv-lh').addEventListener('input', () => { if (!cv.sel) return; cv.sel.lh = num($('#cv-lh').value, 1.3); const n = selNode(); if (n) n.style.lineHeight = cv.sel.lh; save(); });
+    $('#cv-ls').addEventListener('input', () => { if (!cv.sel) return; cv.sel.ls = num($('#cv-ls').value, 0); const n = selNode(); if (n) n.style.letterSpacing = cv.sel.ls + 'px'; save(); });
     $('#cv-front').addEventListener('click', () => { reorderSel(1); });
     $('#cv-back').addEventListener('click', () => { reorderSel(-1); });
     $('#cv-del').addEventListener('click', () => { if (!cv.sel) return; const i = cv.page.elements.indexOf(cv.sel); if (i >= 0) cv.page.elements.splice(i, 1); cv.sel = null; rebuildCanvasEls(); updateCvToolbar(); save(); });
