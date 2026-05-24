@@ -584,23 +584,24 @@
   function startDrag(ev, e, node) {
     ev.preventDefault(); selectEl(e);
     const r = boxRect(), sx = ev.clientX, sy = ev.clientY, ox = e.x, oy = e.y, SNAP = 0.014;
+    const elH = node.offsetHeight / r.height;
+    // 对齐目标：画布中心/边缘/三分线 + 其它元素的 左/中/右、上/中/下
+    const others = cv.page.elements.filter((o) => o !== e).map((o) => { const n = [...cv.box.children].find((c) => c._el === o); const h = n ? n.offsetHeight / r.height : 0.12; return { x: o.x, w: o.w, y: o.y, h }; });
+    const Xt = [0, 1 / 3, 0.5, 2 / 3, 1]; others.forEach((o) => Xt.push(o.x, o.x + o.w / 2, o.x + o.w));
+    const Yt = [0, 0.5, 1]; others.forEach((o) => Yt.push(o.y, o.y + o.h / 2, o.y + o.h));
     const mv = (e2) => {
       let nx = clamp(ox + (e2.clientX - sx) / r.width, 0, 1);
       let ny = clamp(oy + (e2.clientY - sy) / r.height, 0, 1);
-      const elH = node.offsetHeight / r.height;
-      let lineX = null, lineY = null;
-      if (Math.abs((nx + e.w / 2) - 0.5) < SNAP) { nx = 0.5 - e.w / 2; lineX = 50; }
-      else if (Math.abs(nx) < SNAP) { nx = 0; lineX = 0; }
-      else if (Math.abs((nx + e.w) - 1) < SNAP) { nx = 1 - e.w; lineX = 100; }
-      else if (Math.abs((nx + e.w / 2) - 1 / 3) < SNAP) { nx = 1 / 3 - e.w / 2; lineX = 33.33; }
-      else if (Math.abs((nx + e.w / 2) - 2 / 3) < SNAP) { nx = 2 / 3 - e.w / 2; lineX = 66.66; }
-      if (Math.abs((ny + elH / 2) - 0.5) < SNAP) { ny = 0.5 - elH / 2; lineY = 50; }
-      else if (Math.abs(ny) < SNAP) { ny = 0; lineY = 0; }
-      else if (Math.abs((ny + elH) - 1) < SNAP) { ny = 1 - elH; lineY = 100; }
+      let lineX = null, bestX = SNAP, shiftX = 0;
+      [nx, nx + e.w / 2, nx + e.w].forEach((a) => Xt.forEach((t) => { const d = Math.abs(a - t); if (d < bestX) { bestX = d; shiftX = t - a; lineX = t; } }));
+      nx += shiftX;
+      let lineY = null, bestY = SNAP, shiftY = 0;
+      [ny, ny + elH / 2, ny + elH].forEach((a) => Yt.forEach((t) => { const d = Math.abs(a - t); if (d < bestY) { bestY = d; shiftY = t - a; lineY = t; } }));
+      ny += shiftY;
       e.x = nx; e.y = ny;
       node.style.left = (nx * 100) + '%'; node.style.top = (ny * 100) + '%';
-      if (cv.gv) { if (lineX != null) { cv.gv.style.left = lineX + '%'; cv.gv.style.display = 'block'; } else cv.gv.style.display = 'none'; }
-      if (cv.gh) { if (lineY != null) { cv.gh.style.top = lineY + '%'; cv.gh.style.display = 'block'; } else cv.gh.style.display = 'none'; }
+      if (cv.gv) { if (lineX != null) { cv.gv.style.left = (lineX * 100) + '%'; cv.gv.style.display = 'block'; } else cv.gv.style.display = 'none'; }
+      if (cv.gh) { if (lineY != null) { cv.gh.style.top = (lineY * 100) + '%'; cv.gh.style.display = 'block'; } else cv.gh.style.display = 'none'; }
     };
     const up = () => { document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); if (cv.gv) cv.gv.style.display = 'none'; if (cv.gh) cv.gh.style.display = 'none'; save(); };
     document.addEventListener('pointermove', mv); document.addEventListener('pointerup', up);
