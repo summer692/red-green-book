@@ -709,7 +709,7 @@
     wrap.style.width = (CARD_W * scale) + 'px';
     wrap.style.height = (CARD_H * scale) + 'px';
     wrap.appendChild(card);
-    cv = { page, card, box: card.querySelector('.tpl-canvas'), sel: null };
+    cv = { page, card, box: card.querySelector('.tpl-canvas'), sel: null, selSet: [] };
     cv.refs = ['cv-ref-v', 'cv-ref-h', 'cv-ref-t1', 'cv-ref-t2'].map((c) => mk('div', 'cv-ref ' + c));
     cv.gv = mk('div', 'cv-guide cv-guide-v'); cv.gh = mk('div', 'cv-guide cv-guide-h');
     const cbox = card.querySelector('.content-box');
@@ -720,11 +720,15 @@
   }
   function closeCanvasEditor() { $('#cv-modal').hidden = true; cv = null; save(); renderEditors(); renderPreview(); }
 
+  function applyCvSelClasses() {
+    const set = cv.selSet || [];
+    [...cv.box.children].forEach((n) => { if (n._el) { n.classList.toggle('selected', set.includes(n._el)); n.classList.toggle('primary', n._el === cv.sel); } });
+  }
   function rebuildCanvasEls() {
     const box = cv.box; box.innerHTML = '';
     cv.page.elements.forEach((e) => box.appendChild(buildEditableEl(e)));
     if (cv.refs) { cv.refs.forEach((r) => box.appendChild(r)); box.appendChild(cv.gv); box.appendChild(cv.gh); }
-    [...box.children].forEach((n) => { if (n._el) n.classList.toggle('selected', n._el === cv.sel); });
+    applyCvSelClasses();
   }
   function buildEditableEl(e) {
     const node = mk('div', 'cv-el ' + (e.kind === 'image' ? 'cv-img' : 'cv-text'));
@@ -741,19 +745,41 @@
       node.addEventListener('dblclick', () => startEditText(node, e));
     }
     const handle = mk('div', 'cv-handle'); node.appendChild(handle);
-    node.addEventListener('pointerdown', (ev) => { if (ev.target === handle || node.classList.contains('editing')) return; startDrag(ev, e, node); });
-    node.addEventListener('click', (ev) => { ev.stopPropagation(); selectEl(e); });
-    handle.addEventListener('pointerdown', (ev) => { ev.stopPropagation(); startResize(ev, e, node); });
+    node.addEventListener('pointerdown', (ev) => {
+      if (ev.target === handle || node.classList.contains('editing')) return;
+      if (ev.shiftKey) { ev.preventDefault(); selectEl(e, true); return; }
+      if (!(cv.selSet || []).includes(e)) selectEl(e);
+      startDrag(ev, e, node);
+    });
+    handle.addEventListener('pointerdown', (ev) => { ev.stopPropagation(); selectEl(e); startResize(ev, e, node); });
     return node;
   }
   function selNode() { return [...cv.box.children].find((n) => n._el === cv.sel); }
-  function selectEl(e) { cv.sel = e; [...cv.box.children].forEach((n) => n.classList.toggle('selected', n._el === e)); updateCvToolbar(); }
+  function selectEl(e, additive) {
+    if (!cv.selSet) cv.selSet = [];
+    if (!e) { cv.selSet = []; cv.sel = null; }
+    else if (additive) { const i = cv.selSet.indexOf(e); if (i >= 0) { cv.selSet.splice(i, 1); cv.sel = cv.selSet[cv.selSet.length - 1] || null; } else { cv.selSet.push(e); cv.sel = e; } }
+    else { cv.selSet = [e]; cv.sel = e; }
+    applyCvSelClasses(); updateCvToolbar();
+  }
+  function selectAllText() {
+    cv.selSet = cv.page.elements.filter((e) => e.kind === 'text');
+    cv.sel = cv.selSet[cv.selSet.length - 1] || null;
+    applyCvSelClasses(); updateCvToolbar();
+  }
   function boxRect() { return cv.box.getBoundingClientRect(); }
   function startDrag(ev, e, node) {
-    ev.preventDefault(); selectEl(e);
-    const r = boxRect(), sx = ev.clientX, sy = ev.clientY, ox = e.x, oy = e.y, SNAP = 0.014;
-    const elH = node.offsetHeight / r.height;
-    // 对齐目标：画布中心/边缘/三分线 + 其它元素的 左/中/右、上/中/下
+    ev.preventDefault();
+    const set = cv.selSet || [];
+    const r = boxRect(), sx = ev.clientX, sy = ev.clientY;
+    if (set.length > 1 && set.includes(e)) { // 多选一起移动
+      const starts = set.map((el) => ({ el, ox: el.x, oy: el.y }));
+      const mv = (e2) => { const dx = (e2.clientX - sx) / r.width, dy = (e2.clientY - sy) / r.height; starts.forEach(({ el, ox, oy }) => { el.x = clamp(ox + dx, 0, 1); el.y = clamp(oy + dy, 0, 1); const n = [...cv.box.children].find((c) => c._el === el); if (n) { n.style.left = (el.x * 100) + '%'; n.style.top = (el.y * 100) + '%'; } }); };
+      const up = () => { document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); save(); };
+      document.addEventListener('pointermove', mv); document.addEventListener('pointerup', up);
+      return;
+    }
+    const ox = e.x, oy = e.y, SNAP = 0.014, elH = node.offsetHeight / r.height;
     const others = cv.page.elements.filter((o) => o !== e).map((o) => { const n = [...cv.box.children].find((c) => c._el === o); const h = n ? n.offsetHeight / r.height : 0.12; return { x: o.x, w: o.w, y: o.y, h }; });
     const Xt = [0, 1 / 3, 0.5, 2 / 3, 1]; others.forEach((o) => Xt.push(o.x, o.x + o.w / 2, o.x + o.w));
     const Yt = [0, 0.5, 1]; others.forEach((o) => Yt.push(o.y, o.y + o.h / 2, o.y + o.h));
@@ -805,41 +831,47 @@
       const e = { id: uid(), kind: 'image', x: 0.2, y: 0.3, w: 0.5, src: data };
       cv.page.elements.push(e); rebuildCanvasEls(); selectEl(e); save();
     });
-    $('#cv-size').addEventListener('input', () => { if (!cv.sel) return; cv.sel.size = num($('#cv-size').value, cv.sel.size); const n = selNode(); if (n) n.style.fontSize = cv.sel.size + 'px'; save(); });
-    $('#cv-color').addEventListener('input', () => { if (!cv.sel) return; cv.sel.color = $('#cv-color').value; const n = selNode(); if (n) n.style.color = cv.sel.color; save(); });
-    $('#cv-bold').addEventListener('click', () => { if (!cv.sel) return; cv.sel.weight = (cv.sel.weight >= 700) ? 400 : 800; const n = selNode(); if (n) n.style.fontWeight = cv.sel.weight; save(); });
-    $('#cv-align').addEventListener('click', () => { if (!cv.sel) return; cv.sel.align = ALIGNS[(ALIGNS.indexOf(cv.sel.align) + 1) % 3]; const n = selNode(); if (n) n.style.textAlign = cv.sel.align; save(); });
-    $('#cv-font').addEventListener('change', () => { if (!cv.sel) return; cv.sel.font = $('#cv-font').value; ensureWebFont(cv.sel.font); const n = selNode(); if (n) n.style.fontFamily = FONT_STACKS[cv.sel.font] || 'inherit'; save(); });
-    $('#cv-lh').addEventListener('input', () => { if (!cv.sel) return; cv.sel.lh = num($('#cv-lh').value, 1.3); const n = selNode(); if (n) n.style.lineHeight = cv.sel.lh; save(); });
-    $('#cv-ls').addEventListener('input', () => { if (!cv.sel) return; cv.sel.ls = num($('#cv-ls').value, 0); const n = selNode(); if (n) n.style.letterSpacing = cv.sel.ls + 'px'; save(); });
+    function applyToSelText(fn) { (cv.selSet || []).forEach((e) => { if (e.kind === 'text') fn(e); }); rebuildCanvasEls(); save(); }
+    $('#cv-all').addEventListener('click', selectAllText);
+    $('#cv-size').addEventListener('input', () => { const v = num($('#cv-size').value, 36); applyToSelText((e) => { e.size = v; }); });
+    $('#cv-color').addEventListener('input', () => { const v = $('#cv-color').value; applyToSelText((e) => { e.color = v; }); });
+    $('#cv-bold').addEventListener('click', () => { const w = (cv.sel && cv.sel.weight >= 700) ? 400 : 800; applyToSelText((e) => { e.weight = w; }); });
+    $('#cv-align').addEventListener('click', () => { const al = ALIGNS[(ALIGNS.indexOf(cv.sel ? cv.sel.align : 'left') + 1) % 3]; applyToSelText((e) => { e.align = al; }); });
+    $('#cv-font').addEventListener('change', () => { const v = $('#cv-font').value; ensureWebFont(v); applyToSelText((e) => { e.font = v; }); });
+    $('#cv-lh').addEventListener('input', () => { const v = num($('#cv-lh').value, 1.3); applyToSelText((e) => { e.lh = v; }); });
+    $('#cv-ls').addEventListener('input', () => { const v = num($('#cv-ls').value, 0); applyToSelText((e) => { e.ls = v; }); });
     $('#cv-front').addEventListener('click', () => { reorderSel(1); });
     $('#cv-back').addEventListener('click', () => { reorderSel(-1); });
-    $('#cv-del').addEventListener('click', () => { if (!cv.sel) return; const i = cv.page.elements.indexOf(cv.sel); if (i >= 0) cv.page.elements.splice(i, 1); cv.sel = null; rebuildCanvasEls(); updateCvToolbar(); save(); });
+    $('#cv-del').addEventListener('click', () => { const set = cv.selSet || []; if (!set.length) return; cv.page.elements = cv.page.elements.filter((e) => !set.includes(e)); cv.selSet = []; cv.sel = null; rebuildCanvasEls(); updateCvToolbar(); save(); });
     $('#cv-tidy').addEventListener('click', tidyCanvas);
     $('#cv-done').addEventListener('click', closeCanvasEditor);
     document.addEventListener('keydown', (e) => {
-      if (!cv || $('#cv-modal').hidden || !cv.sel) return;
+      if (!cv || $('#cv-modal').hidden || !(cv.selSet && cv.selSet.length)) return;
       const ae = document.activeElement;
       if (ae && (ae.isContentEditable || /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName))) return;
       const map = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
       const dir = map[e.key]; if (!dir) return;
       e.preventDefault();
       const step = e.shiftKey ? 0.02 : 0.004;
-      cv.sel.x = clamp(cv.sel.x + dir[0] * step, 0, 1);
-      cv.sel.y = clamp(cv.sel.y + dir[1] * step, 0, 1);
-      const n = selNode(); if (n) { n.style.left = (cv.sel.x * 100) + '%'; n.style.top = (cv.sel.y * 100) + '%'; }
+      cv.selSet.forEach((el) => { el.x = clamp(el.x + dir[0] * step, 0, 1); el.y = clamp(el.y + dir[1] * step, 0, 1); const n = [...cv.box.children].find((c) => c._el === el); if (n) { n.style.left = (el.x * 100) + '%'; n.style.top = (el.y * 100) + '%'; } });
       save();
     });
   }
   function tidyCanvas() {
     if (!cv || !cv.page.elements.length) return;
-    const r = boxRect();
     const texts = cv.page.elements.filter((e) => e.kind === 'text').sort((a, b) => a.y - b.y);
     if (!texts.length) return;
-    texts.forEach((e) => { e.x = 0.06; e.w = 0.88; }); // 统一左对齐 + 等宽
-    rebuildCanvasEls(); // 应用新宽度后再量高度
-    let y = 0.04; const GAP = 0.022;
-    texts.forEach((e) => { const n = [...cv.box.children].find((c) => c._el === e); const h = n ? n.offsetHeight / r.height : 0.08; e.y = y; y += h + GAP; });
+    texts.forEach((e) => { e.x = 0.06; e.w = 0.88; });
+    let y = 0;
+    for (let iter = 0; iter < 6; iter++) {
+      rebuildCanvasEls();
+      const r = boxRect();
+      y = 0.035; const GAP = 0.02;
+      texts.forEach((e) => { const n = [...cv.box.children].find((c) => c._el === e); const h = n ? n.offsetHeight / r.height : 0.06; e.y = y; y += h + GAP; });
+      if (y <= 0.99) break;
+      const f = Math.max(0.85, 0.96 / y); // 超出则整体缩小字号再排
+      texts.forEach((e) => { e.size = Math.max(9, Math.round(e.size * f)); });
+    }
     rebuildCanvasEls(); save(); flash('已整理排版');
   }
   function reorderSel(dir) {

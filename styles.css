@@ -233,9 +233,10 @@ summary::-webkit-details-marker { display: none; }
 .cv-edit .content-box { overflow: visible; }
 .cv-edit .cv-el { cursor: move; outline: 1px dashed transparent; }
 .cv-edit .cv-el:hover { outline-color: rgba(30,102,204,.5); }
-.cv-edit .cv-el.selected { outline: 2px solid #1e66cc; }
+.cv-edit .cv-el.selected { outline: 2px solid rgba(30,102,204,.6); background: rgba(30,102,204,.06); }
+.cv-edit .cv-el.primary { outline: 2px solid #1e66cc; background: none; }
 .cv-el .cv-handle { position: absolute; right: -7px; bottom: -7px; width: 16px; height: 16px; background: #1e66cc; border: 2px solid #fff; border-radius: 50%; cursor: nwse-resize; display: none; touch-action: none; }
-.cv-edit .cv-el.selected .cv-handle { display: block; }
+.cv-edit .cv-el.primary .cv-handle { display: block; }
 .cv-el.editing { cursor: text; outline: 2px solid #16a06a; }
 
 /* 画布参考线 + 吸附对齐线 */

@@ -157,6 +157,7 @@
         <button id="cv-add-text" class="btn btn-sm">+ 文字</button>
         <label class="btn btn-sm">+ 图片<input id="cv-add-img" type="file" accept="image/*" hidden /></label>
         <button id="cv-tidy" class="btn btn-sm" title="所有文字统一左对齐、等宽、按上下顺序等间距堆叠">整理排版</button>
+        <button id="cv-all" class="btn btn-sm" title="选中全部文字，可一次性改字体/字号/颜色（Shift+点击可多选）">全选文字</button>
         <span class="cv-sel-tools" hidden>
           <span class="cv-tool-lbl">字号</span><input id="cv-size" type="number" min="8" max="240" class="cv-num" />
           <span class="cv-tool-lbl">行距</span><input id="cv-lh" type="number" min="0.6" max="3" step="0.05" class="cv-num" />
@@ -183,7 +184,7 @@
         <button id="cv-done" class="btn btn-sm btn-primary">完成</button>
       </div>
       <div id="cv-stage-wrap" class="cv-stage-wrap"></div>
-      <p class="cv-hint">拖动=移动（粗调）· 选中后用键盘 ↑↓←→ 精确微移（按住 Shift 大步）· 拖右下角=缩放 · 双击文字=改字 · 点空白处=取消选择</p>
+      <p class="cv-hint">拖动=移动 · 键盘 ↑↓←→ 微移（Shift 大步）· 拖右下角=缩放 · 双击=改字 · Shift+点击=多选 · 「全选文字」批量改字体/字号/颜色 · 点空白=取消</p>
     </div>
   </div>
 
