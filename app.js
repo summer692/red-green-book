@@ -222,6 +222,14 @@
     const ta = mk('textarea', 'ta'); ta.rows = rows || 3; ta.value = value || '';
     ta.addEventListener('input', () => on(ta.value)); wrap.appendChild(ta); return wrap;
   }
+  function rangeRow(labelText, key, min, max, step) {
+    const row = mk('div', 'lg-inline');
+    const l = mk('span'); l.textContent = labelText; row.appendChild(l);
+    const inp = mk('input', 'lg-mini', { type: 'range', min: String(min), max: String(max), step: String(step) });
+    inp.value = state[key];
+    inp.addEventListener('input', () => { state[key] = num(inp.value, key === 'memojiScale' ? 1 : 0); touch(); });
+    row.appendChild(inp); return row;
+  }
   function stringListEditor(arr, placeholder) {
     const box = mk('div');
     arr.forEach((val, idx) => {
@@ -291,9 +299,27 @@
         b.appendChild(fieldArea('大标题（换行用回车，每行别太长）', page.title, (v) => { page.title = v; touch(); }, 3));
         const cr = mk('label', 'check-row');
         const cb = mk('input', '', { type: 'checkbox' }); cb.checked = page.showMemoji !== false;
-        cb.addEventListener('change', () => { page.showMemoji = cb.checked; touch(); });
-        const sp = mk('span'); sp.textContent = '显示 3D 人物（仅小红书封面，需放 assets/memoji.png）';
-        cr.append(cb, sp); b.appendChild(cr); break;
+        cb.addEventListener('change', () => { page.showMemoji = cb.checked; restructure(); });
+        const sp = mk('span'); sp.textContent = '显示 3D 人物（仅小红书封面）';
+        cr.append(cb, sp); b.appendChild(cr);
+        if (page.showMemoji !== false) {
+          const has = state.memojiData || memojiDataUri;
+          const up = mk('label', 'btn btn-sm'); up.textContent = has ? '更换人物图片' : '上传人物图片';
+          const fi = mk('input', '', { type: 'file', accept: 'image/*' }); fi.style.display = 'none';
+          fi.addEventListener('change', async () => { const f = fi.files && fi.files[0]; fi.value = ''; if (!f) return; if (!/^image\//.test(f.type)) { alert('请选择图片文件'); return; } state.memojiData = await readDataUrl(f); if (!save()) flash('图太大，本地存不下；本次有效，刷新会丢'); restructure(); flash('人物已更新'); });
+          up.appendChild(fi);
+          const clr = mk('button', 'btn btn-sm btn-ghost'); clr.textContent = '清除人物'; clr.addEventListener('click', () => { state.memojiData = null; restructure(); flash('已清除人物'); });
+          const row = mk('div', 'btn-row'); row.append(up, clr); b.appendChild(row);
+          if (has) {
+            b.appendChild(label('人物大小 / 位置（拖滑块移动；或点下方“转为自由画布”直接拖）'));
+            b.appendChild(rangeRow('缩放', 'memojiScale', 0.4, 2.5, 0.05));
+            b.appendChild(rangeRow('水平', 'memojiOffsetX', -220, 220, 2));
+            b.appendChild(rangeRow('垂直', 'memojiOffsetY', -260, 160, 2));
+            const rs = mk('button', 'btn btn-sm'); rs.textContent = '复原人物'; rs.addEventListener('click', () => { state.memojiScale = 1; state.memojiOffsetX = 0; state.memojiOffsetY = 0; restructure(); flash('已复原人物'); });
+            b.appendChild(rs);
+          }
+        }
+        break;
       }
       case 'bilingual':
         b.appendChild(fieldText('小标题（红/藏蓝）', page.heading, (v) => { page.heading = v; touch(); }));
@@ -706,14 +732,8 @@
     const recolor = $('#logo-recolor'); recolor.checked = state.logoRecolor !== false; recolor.addEventListener('change', () => { state.logoRecolor = recolor.checked; touch(); });
     bindUpload('#up-logo', async (data) => { state.logoData = data; const n = await imgNat(data); state.logoNatW = n.w; state.logoNatH = n.h; resetLogoAdjust(); if (!save()) flash('图太大，本地存不下；本次有效，刷新会丢'); renderPreview(); flash('logo 已更新，可点“裁剪/缩放/移动”调整'); });
     $('#clr-logo').addEventListener('click', () => { state.logoData = null; touch(); flash('已清除 logo'); });
-    bindUpload('#up-memoji', (data) => { state.memojiData = data; if (!save()) flash('图太大，本地存不下；本次有效，刷新会丢'); renderPreview(); flash('人物已更新'); });
-    $('#clr-memoji').addEventListener('click', () => { state.memojiData = null; touch(); flash('已清除人物'); });
-    const mjInit = () => { $('#mj-scale').value = state.memojiScale; $('#mj-x').value = state.memojiOffsetX; $('#mj-y').value = state.memojiOffsetY; };
-    mjInit();
-    const mjSync = (id, key) => $(id).addEventListener('input', () => { state[key] = num($(id).value, key === 'memojiScale' ? 1 : 0); touch(); });
-    mjSync('#mj-scale', 'memojiScale'); mjSync('#mj-x', 'memojiOffsetX'); mjSync('#mj-y', 'memojiOffsetY');
-    $('#mj-reset').addEventListener('click', () => { state.memojiScale = 1; state.memojiOffsetX = 0; state.memojiOffsetY = 0; mjInit(); touch(); flash('已复原人物'); });
   }
+  function readDataUrl(file) { return new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = rej; fr.readAsDataURL(file); }); }
   function bindUpload(sel, onData) {
     const inp = $(sel);
     inp.addEventListener('change', async () => {
