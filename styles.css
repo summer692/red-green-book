@@ -123,6 +123,18 @@ summary::-webkit-details-marker { display: none; }
 .logo-text .spark { width: 12px; height: 12px; margin: 0 0 14px 1px; background: var(--logo-color);
   clip-path: polygon(50% 0, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0 50%, 40% 40%); }
 .logo-img-plain { height: 48px; width: auto; max-width: 280px; object-fit: contain; display: block; }
+.logo-box { display: inline-block; }
+.lg-inline { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 8px; font-size: 12px; color: #6b6b70; }
+.lg-mini { width: 78px; }
+
+/* logo 调整器 */
+.lg-prevs { display: flex; gap: 12px; }
+.logo-prev { position: relative; flex: 1; background: #fff; border: 1px solid rgba(0,0,0,.12); border-radius: 10px; padding: 18px 14px 14px; min-height: 70px; display: flex; align-items: center; justify-content: center; }
+.lg-tag { position: absolute; top: 5px; left: 9px; font-size: 11px; color: #9a9aa0; }
+.lg-crop { position: relative; align-self: center; width: 360px; max-width: 80vw; overflow: hidden; border-radius: 8px; }
+.lg-crop img { display: block; width: 100%; height: auto; user-select: none; -webkit-user-drag: none; }
+.lg-crop-rect { position: absolute; border: 2px solid #1e66cc; box-shadow: 0 0 0 9999px rgba(0,0,0,.4); cursor: move; touch-action: none; }
+.lg-crop-handle { position: absolute; right: -8px; bottom: -8px; width: 17px; height: 17px; background: #1e66cc; border: 2px solid #fff; border-radius: 50%; cursor: nwse-resize; touch-action: none; }
 .logo-mask { background-color: var(--logo-color); width: 200px; height: 46px;
   -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-size: contain; mask-size: contain;
   -webkit-mask-image: var(--logo-src); mask-image: var(--logo-src); }

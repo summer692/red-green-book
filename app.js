@@ -8,17 +8,28 @@
   const ALIGNS = ['left', 'center', 'right'];
   const DEFAULT_FOOTER = '备注：本文所提供的信息均来源于大学官网。申请时请务必以学校官网公布的最新信息为准。';
   // 注意：用单引号包字体名，避免破坏导出时的 style="…" 双引号属性
+  // 这些都是 Mac 自带字体（中英混排时英文走前面的字体、中文自动回退到后面的黑/宋体）
   const FONT_STACKS = {
     hei: "-apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif",
     yuan: "'Yuanti SC', 'Yuppy SC', 'PingFang SC', sans-serif",
     kai: "'Kaiti SC', 'STKaiti', 'KaiTi', serif",
     song: "'Songti SC', 'STSong', 'SimSun', serif",
+    libian: "'Libian SC', 'Baoli SC', 'PingFang SC', serif",
+    weibei: "'Weibei SC', 'Hannotate SC', 'PingFang SC', serif",
+    yuppy: "'Yuppy SC', 'Yuanti SC', 'PingFang SC', sans-serif",
+    impact: "Impact, Haettenschweiler, 'Arial Narrow', 'PingFang SC', sans-serif",
+    futura: "Futura, 'Trebuchet MS', Verdana, 'PingFang SC', sans-serif",
+    helvetica: "'Helvetica Neue', Helvetica, Arial, 'PingFang SC', sans-serif",
+    georgia: "Georgia, 'Songti SC', serif",
+    times: "'Times New Roman', Times, 'Songti SC', serif",
+    courier: "'Courier New', Courier, monospace",
     custom: "'EduDisplay', -apple-system, 'PingFang SC', sans-serif",
   };
   function coverFontStack() { return FONT_STACKS[state.coverFont] || FONT_STACKS.hei; }
 
   // 资产（用户放进 assets/ 后自动生效）
   let logoDataUri = null;     // assets/logo-mark.(svg|png) → 按主题色重新上色
+  let logoAssetNat = { w: 0, h: 0 };
   let memojiDataUri = null;   // assets/memoji.(png|svg) → 小红书封面人物
   let displayFontB64 = null;  // assets/fonts/display.(woff2|ttf) → 封面方块字（导出时内联）
   let displayFontMime = 'font/woff2';
@@ -49,7 +60,8 @@
       default: return null;
     }
   }
-  function freshState() { return { platform: 'xhs', brandLabel: '签证信息', footerNote: DEFAULT_FOOTER, coverFont: 'hei', logoData: null, logoRecolor: true, memojiData: null, pages: [defaultPage('cover')] }; }
+  const DEF_CROP = { x: 0, y: 0, w: 1, h: 1 };
+  function freshState() { return { platform: 'xhs', brandLabel: '签证信息', footerNote: DEFAULT_FOOTER, coverFont: 'hei', logoData: null, logoRecolor: true, logoNatW: 0, logoNatH: 0, logoScale: 1, logoOffsetX: 0, logoOffsetY: 0, logoCrop: { x: 0, y: 0, w: 1, h: 1 }, memojiData: null, memojiScale: 1, memojiOffsetX: 0, memojiOffsetY: 0, pages: [defaultPage('cover')] }; }
   function loadState() {
     try {
       const s = JSON.parse(localStorage.getItem(LS_KEY));
@@ -60,10 +72,21 @@
       if (!FONT_STACKS[s.coverFont]) s.coverFont = 'hei';
       if (typeof s.logoData !== 'string') s.logoData = null;
       if (typeof s.logoRecolor !== 'boolean') s.logoRecolor = true;
+      if (typeof s.logoNatW !== 'number') s.logoNatW = 0;
+      if (typeof s.logoNatH !== 'number') s.logoNatH = 0;
+      if (typeof s.logoScale !== 'number') s.logoScale = 1;
+      if (typeof s.logoOffsetX !== 'number') s.logoOffsetX = 0;
+      if (typeof s.logoOffsetY !== 'number') s.logoOffsetY = 0;
+      if (!s.logoCrop || typeof s.logoCrop !== 'object') s.logoCrop = { x: 0, y: 0, w: 1, h: 1 };
       if (typeof s.memojiData !== 'string') s.memojiData = null;
+      if (typeof s.memojiScale !== 'number') s.memojiScale = 1;
+      if (typeof s.memojiOffsetX !== 'number') s.memojiOffsetX = 0;
+      if (typeof s.memojiOffsetY !== 'number') s.memojiOffsetY = 0;
       return s;
     } catch { return freshState(); }
   }
+  function imgNat(url) { return new Promise((res) => { const i = new Image(); i.onload = () => res({ w: i.naturalWidth, h: i.naturalHeight }); i.onerror = () => res({ w: 0, h: 0 }); i.src = url; }); }
+  function resetLogoAdjust() { state.logoScale = 1; state.logoOffsetX = 0; state.logoOffsetY = 0; state.logoCrop = { x: 0, y: 0, w: 1, h: 1 }; }
   let state = loadState();
   function save() { try { localStorage.setItem(LS_KEY, JSON.stringify(state)); return true; } catch { return false; } }
   function touch() { save(); renderPreview(); }
@@ -72,11 +95,23 @@
   // ---------------- 报头 / 卡片骨架 ----------------
   function logoMarkup() {
     const src = state.logoData || logoDataUri;
-    if (src) {
-      if (state.logoRecolor !== false) return `<div class="logo-mask" style="--logo-src:url('${src}')"></div>`;
-      return `<img class="logo-img-plain" src="${src}" alt="logo" />`;
+    if (!src) return `<div class="logo-text">EduLight<span class="spark"></span></div>`;
+    const natW = state.logoData ? state.logoNatW : logoAssetNat.w;
+    const natH = state.logoData ? state.logoNatH : logoAssetNat.h;
+    const c = state.logoCrop || DEF_CROP;
+    const scale = state.logoScale || 1;
+    const boxH = 46 * scale;
+    let boxW, bgW, bgH, bgX, bgY;
+    if (natW > 0 && natH > 0 && c.w > 0 && c.h > 0) {
+      boxW = boxH * ((c.w * natW) / (c.h * natH));
+      bgW = boxW / c.w; bgH = boxH / c.h; bgX = -c.x * bgW; bgY = -c.y * bgH;
+    } else { boxW = 200 * scale; bgW = boxW; bgH = boxH; bgX = 0; bgY = 0; }
+    const f = (n) => n.toFixed(1);
+    const common = `width:${f(boxW)}px;height:${f(boxH)}px;transform:translate(${state.logoOffsetX || 0}px,${state.logoOffsetY || 0}px);`;
+    if (state.logoRecolor !== false) {
+      return `<div class="logo-box" style="${common}background-color:var(--logo-color);-webkit-mask-image:url('${src}');mask-image:url('${src}');-webkit-mask-size:${f(bgW)}px ${f(bgH)}px;mask-size:${f(bgW)}px ${f(bgH)}px;-webkit-mask-position:${f(bgX)}px ${f(bgY)}px;mask-position:${f(bgX)}px ${f(bgY)}px;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;"></div>`;
     }
-    return `<div class="logo-text">EduLight<span class="spark"></span></div>`;
+    return `<div class="logo-box" style="${common}background-image:url('${src}');background-size:${f(bgW)}px ${f(bgH)}px;background-position:${f(bgX)}px ${f(bgY)}px;background-repeat:no-repeat;"></div>`;
   }
   function masthead() {
     if (state.platform === 'xhs') {
@@ -98,11 +133,15 @@
   // ---------------- 模板 HTML（<img/> 自闭合，导出走 XML 解析） ----------------
   function templateHTML(p) {
     switch (p.type) {
-      case 'cover':
+      case 'cover': {
+        const mjSrc = state.memojiData || memojiDataUri;
+        const showMj = state.platform === 'xhs' && p.showMemoji !== false && mjSrc;
+        const mjStyle = `height:${(190 * (state.memojiScale || 1)).toFixed(1)}px;transform:translate(${state.memojiOffsetX || 0}px,${state.memojiOffsetY || 0}px);`;
         return `<div class="tpl-cover">
             <h1 class="cover-title">${esc(p.title)}</h1>
-            ${(state.platform === 'xhs' && p.showMemoji !== false && (state.memojiData || memojiDataUri)) ? `<img class="cover-memoji" src="${state.memojiData || memojiDataUri}" alt="" />` : ''}
+            ${showMj ? `<img class="cover-memoji" src="${mjSrc}" style="${mjStyle}" alt="" />` : ''}
           </div>`;
+      }
       case 'bilingual':
         return `<div class="tpl-bilingual">
             <h2 class="sec-heading">${esc(p.heading)}</h2>
@@ -558,9 +597,54 @@
   }
   async function loadAssets() {
     logoDataUri = await loadImageAsset(['assets/logo-mark.svg', 'assets/logo-mark.png']);
+    if (logoDataUri) logoAssetNat = await imgNat(logoDataUri);
     memojiDataUri = await loadImageAsset(['assets/memoji.png', 'assets/memoji.svg']);
     await loadFontAsset();
     renderPreview();
+  }
+
+  // ---------------- logo 调整器（裁剪/缩放/移动，全局统一） ----------------
+  function openLogoEditor() {
+    const src = state.logoData || logoDataUri;
+    if (!src) { alert('请先点上方“上传 logo”选择一张图片'); return; }
+    const img = $('#lg-crop-img');
+    $('#lg-scale').value = state.logoScale || 1;
+    $('#lg-x').value = state.logoOffsetX || 0;
+    $('#lg-y').value = state.logoOffsetY || 0;
+    const onready = () => { layoutCropRect(); updateLogoPrev(); };
+    img.onload = onready; img.src = src;
+    if (img.complete && img.naturalWidth) onready();
+    $('#logo-modal').hidden = false;
+  }
+  function layoutCropRect() {
+    const c = state.logoCrop || DEF_CROP, r = $('#lg-crop-rect');
+    r.style.left = (c.x * 100) + '%'; r.style.top = (c.y * 100) + '%'; r.style.width = (c.w * 100) + '%'; r.style.height = (c.h * 100) + '%';
+  }
+  function updateLogoPrev() { document.querySelectorAll('.lg-prev-logo').forEach((el) => { el.innerHTML = logoMarkup(); }); }
+  function lgImgRect() { return $('#lg-crop-img').getBoundingClientRect(); }
+  function startCropDrag(ev) {
+    if (ev.target.classList.contains('lg-crop-handle')) return;
+    ev.preventDefault();
+    const c = state.logoCrop, r = lgImgRect(), sx = ev.clientX, sy = ev.clientY, ox = c.x, oy = c.y;
+    const mv = (e2) => { c.x = clamp(ox + (e2.clientX - sx) / r.width, 0, 1 - c.w); c.y = clamp(oy + (e2.clientY - sy) / r.height, 0, 1 - c.h); layoutCropRect(); updateLogoPrev(); };
+    const up = () => { document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); save(); renderPreview(); };
+    document.addEventListener('pointermove', mv); document.addEventListener('pointerup', up);
+  }
+  function startCropResize(ev) {
+    ev.preventDefault(); ev.stopPropagation();
+    const c = state.logoCrop, r = lgImgRect(), sx = ev.clientX, sy = ev.clientY, ow = c.w, oh = c.h;
+    const mv = (e2) => { c.w = clamp(ow + (e2.clientX - sx) / r.width, 0.05, 1 - c.x); c.h = clamp(oh + (e2.clientY - sy) / r.height, 0.05, 1 - c.y); layoutCropRect(); updateLogoPrev(); };
+    const up = () => { document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); save(); renderPreview(); };
+    document.addEventListener('pointermove', mv); document.addEventListener('pointerup', up);
+  }
+  function wireLogoEditor() {
+    $('#logo-adjust').addEventListener('click', openLogoEditor);
+    $('#lg-crop-rect').addEventListener('pointerdown', startCropDrag);
+    $('#lg-crop-rect').querySelector('.lg-crop-handle').addEventListener('pointerdown', startCropResize);
+    const sync = (id, key) => $(id).addEventListener('input', () => { state[key] = num($(id).value, key === 'logoScale' ? 1 : 0); updateLogoPrev(); renderPreview(); save(); });
+    sync('#lg-scale', 'logoScale'); sync('#lg-x', 'logoOffsetX'); sync('#lg-y', 'logoOffsetY');
+    $('#lg-reset').addEventListener('click', () => { resetLogoAdjust(); $('#lg-scale').value = 1; $('#lg-x').value = 0; $('#lg-y').value = 0; layoutCropRect(); updateLogoPrev(); renderPreview(); save(); flash('已复原 logo 调整'); });
+    $('#lg-done').addEventListener('click', () => { $('#logo-modal').hidden = true; renderPreview(); });
   }
 
   // ---------------- 绑定 / 初始化 ----------------
@@ -576,10 +660,15 @@
     const fontSel = $('#set-font'); fontSel.value = state.coverFont; fontSel.addEventListener('change', () => { state.coverFont = fontSel.value; touch(); });
 
     const recolor = $('#logo-recolor'); recolor.checked = state.logoRecolor !== false; recolor.addEventListener('change', () => { state.logoRecolor = recolor.checked; touch(); });
-    bindUpload('#up-logo', (data) => { state.logoData = data; if (!save()) flash('图太大，本地存不下；本次有效，刷新会丢'); renderPreview(); flash('logo 已更新'); });
+    bindUpload('#up-logo', async (data) => { state.logoData = data; const n = await imgNat(data); state.logoNatW = n.w; state.logoNatH = n.h; resetLogoAdjust(); if (!save()) flash('图太大，本地存不下；本次有效，刷新会丢'); renderPreview(); flash('logo 已更新，可点“裁剪/缩放/移动”调整'); });
     $('#clr-logo').addEventListener('click', () => { state.logoData = null; touch(); flash('已清除 logo'); });
     bindUpload('#up-memoji', (data) => { state.memojiData = data; if (!save()) flash('图太大，本地存不下；本次有效，刷新会丢'); renderPreview(); flash('人物已更新'); });
     $('#clr-memoji').addEventListener('click', () => { state.memojiData = null; touch(); flash('已清除人物'); });
+    const mjInit = () => { $('#mj-scale').value = state.memojiScale; $('#mj-x').value = state.memojiOffsetX; $('#mj-y').value = state.memojiOffsetY; };
+    mjInit();
+    const mjSync = (id, key) => $(id).addEventListener('input', () => { state[key] = num($(id).value, key === 'memojiScale' ? 1 : 0); touch(); });
+    mjSync('#mj-scale', 'memojiScale'); mjSync('#mj-x', 'memojiOffsetX'); mjSync('#mj-y', 'memojiOffsetY');
+    $('#mj-reset').addEventListener('click', () => { state.memojiScale = 1; state.memojiOffsetX = 0; state.memojiOffsetY = 0; mjInit(); touch(); flash('已复原人物'); });
   }
   function bindUpload(sel, onData) {
     const inp = $(sel);
@@ -594,7 +683,7 @@
   function init() {
     document.documentElement.dataset.platform = state.platform;
     document.querySelectorAll('.plat-btn').forEach((b) => b.classList.toggle('is-active', b.dataset.platform === state.platform));
-    wire(); wireCanvas(); renderEditors(); renderPreview(); loadAssets();
+    wire(); wireCanvas(); wireLogoEditor(); renderEditors(); renderPreview(); loadAssets();
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();

@@ -37,11 +37,26 @@
           <textarea id="set-footer" class="ta" rows="2"></textarea>
           <label class="field-label" for="set-font">封面字体</label>
           <select id="set-font" class="inp">
-            <option value="hei">黑体（默认）</option>
-            <option value="yuan">圆体</option>
-            <option value="kai">楷体</option>
-            <option value="song">宋体</option>
-            <option value="custom">自定义（放 assets/fonts/display.ttf 后选这个）</option>
+            <optgroup label="中文">
+              <option value="hei">黑体（默认）</option>
+              <option value="yuan">圆体</option>
+              <option value="kai">楷体</option>
+              <option value="song">宋体</option>
+              <option value="libian">隶书</option>
+              <option value="weibei">魏碑</option>
+              <option value="yuppy">雅痞</option>
+            </optgroup>
+            <optgroup label="英文（中文自动回退）">
+              <option value="impact">Impact 粗体</option>
+              <option value="futura">Futura</option>
+              <option value="helvetica">Helvetica</option>
+              <option value="georgia">Georgia 衬线</option>
+              <option value="times">Times 衬线</option>
+              <option value="courier">Courier 等宽</option>
+            </optgroup>
+            <optgroup label="自定义">
+              <option value="custom">自定义（放 assets/fonts/display.ttf）</option>
+            </optgroup>
           </select>
 
           <label class="field-label">Logo（上传图片，透明底最佳）</label>
@@ -50,11 +65,21 @@
             <button id="clr-logo" class="btn btn-sm btn-ghost">清除</button>
           </div>
           <label class="check-row"><input id="logo-recolor" type="checkbox" /> <span>logo 按主题色重新上色（透明底单色 logo 选这个）</span></label>
+          <div class="btn-row">
+            <button id="logo-adjust" class="btn btn-sm">裁剪 / 缩放 / 移动 logo</button>
+          </div>
 
           <label class="field-label">小红书封面人物（上传图片，透明底最佳）</label>
           <div class="btn-row">
             <label class="btn btn-sm">上传人物<input id="up-memoji" type="file" accept="image/*" hidden /></label>
             <button id="clr-memoji" class="btn btn-sm btn-ghost">清除</button>
+          </div>
+          <div class="lg-inline">
+            <span class="cv-tool-lbl">人物</span>
+            <span>缩放</span><input id="mj-scale" type="range" min="0.4" max="2.5" step="0.05" class="lg-mini" />
+            <span>水平</span><input id="mj-x" type="range" min="-200" max="200" step="2" class="lg-mini" />
+            <span>垂直</span><input id="mj-y" type="range" min="-220" max="120" step="2" class="lg-mini" />
+            <button id="mj-reset" class="btn btn-sm">复原</button>
           </div>
         </div>
       </details>
@@ -123,6 +148,26 @@
       </div>
       <div id="cv-stage-wrap" class="cv-stage-wrap"></div>
       <p class="cv-hint">拖动=移动 · 拖右下角=缩放 · 双击文字=改字 · 点空白处=取消选择</p>
+    </div>
+  </div>
+
+  <!-- logo 调整器（裁剪/缩放/移动，全局统一） -->
+  <div id="logo-modal" class="cv-modal" hidden>
+    <div class="cv-modal-inner">
+      <div class="cv-toolbar">
+        <span class="cv-tool-lbl">缩放</span><input id="lg-scale" type="range" min="0.4" max="2.5" step="0.05" />
+        <span class="cv-tool-lbl">水平</span><input id="lg-x" type="range" min="-40" max="40" step="1" />
+        <span class="cv-tool-lbl">垂直</span><input id="lg-y" type="range" min="-40" max="40" step="1" />
+        <button id="lg-reset" class="btn btn-sm">一键复原</button>
+        <span class="cv-spacer"></span>
+        <button id="lg-done" class="btn btn-sm btn-primary">完成</button>
+      </div>
+      <div class="lg-prevs">
+        <div class="logo-prev" data-platform="xhs"><span class="lg-tag">小红书</span><div class="lg-prev-logo"></div></div>
+        <div class="logo-prev" data-platform="xls"><span class="lg-tag">小绿书</span><div class="lg-prev-logo"></div></div>
+      </div>
+      <div id="lg-crop" class="lg-crop"><img id="lg-crop-img" alt="" /><div id="lg-crop-rect" class="lg-crop-rect"><div class="lg-crop-handle"></div></div></div>
+      <p class="cv-hint">拖动方框=选裁剪区域，拖右下角=改大小 · 滑块调缩放与位置 · 调整对所有页面统一生效</p>
     </div>
   </div>
 
