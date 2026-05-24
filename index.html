@@ -133,6 +133,17 @@
         <label class="btn btn-sm">+ 图片<input id="cv-add-img" type="file" accept="image/*" hidden /></label>
         <span class="cv-sel-tools" hidden>
           <span class="cv-tool-lbl">字号</span><input id="cv-size" type="number" min="8" max="240" class="cv-num" />
+          <select id="cv-font" class="cv-font" title="字体">
+            <optgroup label="中文">
+              <option value="hei">黑体</option><option value="yuan">圆体</option><option value="kai">楷体</option>
+              <option value="song">宋体</option><option value="libian">隶书</option><option value="weibei">魏碑</option><option value="yuppy">雅痞</option>
+            </optgroup>
+            <optgroup label="英文">
+              <option value="impact">Impact</option><option value="futura">Futura</option><option value="helvetica">Helvetica</option>
+              <option value="georgia">Georgia</option><option value="times">Times</option><option value="courier">Courier</option>
+            </optgroup>
+            <optgroup label="自定义"><option value="custom">自定义字体</option></optgroup>
+          </select>
           <input id="cv-color" type="color" class="cv-color" title="文字颜色" />
           <button id="cv-bold" class="btn btn-sm" title="加粗">B</button>
           <button id="cv-align" class="btn btn-sm" title="对齐方式">对齐</button>
