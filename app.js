@@ -61,7 +61,7 @@
     }
   }
   const DEF_CROP = { x: 0, y: 0, w: 1, h: 1 };
-  function freshState() { return { platform: 'xhs', brandLabel: '签证信息', footerNote: DEFAULT_FOOTER, coverFont: 'hei', logoData: null, logoRecolor: true, logoNatW: 0, logoNatH: 0, logoScale: 1, logoOffsetX: 0, logoOffsetY: 0, logoCrop: { x: 0, y: 0, w: 1, h: 1 }, memojiData: null, memojiScale: 1, memojiOffsetX: 0, memojiOffsetY: 0, pages: [defaultPage('cover')] }; }
+  function freshState() { return { platform: 'xhs', brandLabel: '签证信息', footerNote: DEFAULT_FOOTER, coverFont: 'hei', brandLabelSize: 24, logoData: null, logoRecolor: true, logoNatW: 0, logoNatH: 0, logoScale: 1, logoOffsetX: 0, logoOffsetY: 0, logoCrop: { x: 0, y: 0, w: 1, h: 1 }, memojiData: null, memojiScale: 1, memojiOffsetX: 0, memojiOffsetY: 0, pages: [defaultPage('cover')] }; }
   function loadState() {
     try {
       const s = JSON.parse(localStorage.getItem(LS_KEY));
@@ -70,6 +70,7 @@
       if (typeof s.brandLabel !== 'string') s.brandLabel = '签证信息';
       if (typeof s.footerNote !== 'string') s.footerNote = DEFAULT_FOOTER;
       if (!FONT_STACKS[s.coverFont]) s.coverFont = 'hei';
+      if (typeof s.brandLabelSize !== 'number') s.brandLabelSize = 24;
       if (typeof s.logoData !== 'string') s.logoData = null;
       if (typeof s.logoRecolor !== 'boolean') s.logoRecolor = true;
       if (typeof s.logoNatW !== 'number') s.logoNatW = 0;
@@ -120,12 +121,12 @@
           <div class="mh-right"><div class="mh-line"></div><div class="mh-slogan">LIGHT UP THE FUTURE!</div></div>
         </div>`;
     }
-    return `<div class="masthead mh-xls">${logoMarkup()}${state.brandLabel ? `<div class="brand-label">${esc(state.brandLabel)}</div>` : ''}</div>`;
+    return `<div class="masthead mh-xls">${logoMarkup()}${state.brandLabel ? `<div class="brand-label" style="font-size:${state.brandLabelSize || 24}px">${esc(state.brandLabel)}</div>` : ''}</div>`;
   }
 
   function buildCardHTML(page) {
     const isCover = page.type === 'cover';
-    const footer = (!isCover && state.footerNote) ? `<div class="card-footer">${esc(state.footerNote)}</div>` : '';
+    const footer = (!isCover && !page.noFooter && state.footerNote) ? `<div class="card-footer">${esc(state.footerNote)}</div>` : '';
     return `<div class="frame">${masthead()}<div class="content-box">${templateHTML(page)}</div>${footer}</div>`;
   }
   function buildCard(page) { const c = mk('div', 'page-card'); c.style.setProperty('--cover-font', coverFontStack()); c.innerHTML = buildCardHTML(page); return c; }
@@ -326,7 +327,49 @@
         break;
       }
     }
+    if (['cover', 'text', 'policy', 'list', 'bilingual'].includes(page.type)) {
+      const conv = mk('button', 'btn btn-sm'); conv.style.marginTop = '10px';
+      conv.textContent = '转为自由画布（可拖动·改字号/颜色/位置）';
+      conv.addEventListener('click', () => {
+        if (confirm('转成自由画布后，本页内容会变成可自由拖动的文字块，原模板结构不再保留。继续？')) {
+          convertPageToCanvas(page); restructure(); openCanvasEditor(page);
+        }
+      });
+      b.appendChild(conv);
+    }
     return b;
+  }
+  function convertPageToCanvas(page) {
+    const cs = getComputedStyle(document.documentElement);
+    const C = (n, d) => { const v = cs.getPropertyValue(n).trim(); return v || d; };
+    const heading = C('--heading', '#191970'), ink = C('--ink', '#191970'), title = C('--title-color', heading);
+    const els = []; const X = 0.06, W = 0.88, CW = 470, CH = 600; let y = 0.06;
+    const push = (text, size, color, weight, align) => {
+      const cpl = Math.max(1, Math.floor((W * CW) / size));
+      const lines = String(text).split('\n').reduce((a, l) => a + Math.max(1, Math.ceil((l.length || 1) / cpl)), 0);
+      els.push({ id: uid(), kind: 'text', x: X, y, w: W, text: String(text), size, color: color || '', weight, align: align || 'left', font: state.coverFont || 'hei' });
+      y += (lines * size * 1.32) / CH + 0.025;
+    };
+    switch (page.type) {
+      case 'cover':
+        push(page.title, 80, title, 900, 'left');
+        if (page.showMemoji !== false && (state.memojiData || memojiDataUri)) els.push({ id: uid(), kind: 'image', x: 0.34, y: Math.min(0.6, y + 0.05), w: 0.32, src: state.memojiData || memojiDataUri });
+        break;
+      case 'text': push(page.title, 46, heading, 900); push(page.body, 24, ink, 400); break;
+      case 'policy': push(page.title, 42, heading, 900); (page.points || []).forEach((pt) => push('· ' + pt, 24, ink, 500)); break;
+      case 'list': push(page.heading, 34, heading, 800); (page.items || []).forEach((it, i) => push((i + 1) + '. ' + it.name + (it.note ? '  ' + it.note : ''), 24, ink, 500)); break;
+      case 'bilingual':
+        push(page.heading, 30, heading, 800);
+        if (page.en) push(page.en, 21, ink, 800);
+        if (page.cn) push(page.cn, 21, ink, 400);
+        if (page.steps && page.steps.filter(Boolean).length) { push(page.actionTitle || '要怎么做?', 28, heading, 800); page.steps.filter(Boolean).forEach((s, i) => push((i + 1) + '. ' + s, 21, ink, 500)); }
+        break;
+      default: return false;
+    }
+    const noFooter = page.type === 'cover';
+    Object.keys(page).forEach((k) => { if (k !== 'id') delete page[k]; });
+    page.type = 'canvas'; page.elements = els; if (noFooter) page.noFooter = true;
+    return true;
   }
   function move(i, dir) { const j = i + dir; if (j < 0 || j >= state.pages.length) return; const t = state.pages[i]; state.pages[i] = state.pages[j]; state.pages[j] = t; restructure(); }
   function renderEditors() {
@@ -656,6 +699,7 @@
     $('#btn-ai-copy').addEventListener('click', onCopyPrompt);
     $('#btn-ai-fill').addEventListener('click', onFill);
     const lbl = $('#set-label'); lbl.value = state.brandLabel; lbl.addEventListener('input', () => { state.brandLabel = lbl.value; touch(); });
+    const lblSize = $('#set-label-size'); lblSize.value = state.brandLabelSize; lblSize.addEventListener('input', () => { state.brandLabelSize = num(lblSize.value, 24); touch(); });
     const ft = $('#set-footer'); ft.value = state.footerNote; ft.addEventListener('input', () => { state.footerNote = ft.value; touch(); });
     const fontSel = $('#set-font'); fontSel.value = state.coverFont; fontSel.addEventListener('change', () => { state.coverFont = fontSel.value; touch(); });
 
