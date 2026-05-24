@@ -89,6 +89,7 @@
           <button class="btn btn-sm" data-add="list">+ 列表</button>
           <button class="btn btn-sm" data-add="policy">+ 政策</button>
           <button class="btn btn-sm" data-add="text">+ 文本</button>
+          <button class="btn btn-sm" data-add="canvas">+ 自由画布</button>
         </div>
       </div>
 
@@ -101,6 +102,29 @@
       <p id="preview-empty" class="preview-empty">还没有页面。左边点「+ 封面」或用 Claude 整理来开始。</p>
     </section>
   </main>
+
+  <!-- 自由画布编辑器 -->
+  <div id="cv-modal" class="cv-modal" hidden>
+    <div class="cv-modal-inner">
+      <div class="cv-toolbar">
+        <button id="cv-add-text" class="btn btn-sm">+ 文字</button>
+        <label class="btn btn-sm">+ 图片<input id="cv-add-img" type="file" accept="image/*" hidden /></label>
+        <span class="cv-sel-tools" hidden>
+          <span class="cv-tool-lbl">字号</span><input id="cv-size" type="number" min="8" max="240" class="cv-num" />
+          <input id="cv-color" type="color" class="cv-color" title="文字颜色" />
+          <button id="cv-bold" class="btn btn-sm" title="加粗">B</button>
+          <button id="cv-align" class="btn btn-sm" title="对齐方式">对齐</button>
+          <button id="cv-front" class="btn btn-sm" title="上移一层">↑层</button>
+          <button id="cv-back" class="btn btn-sm" title="下移一层">↓层</button>
+          <button id="cv-del" class="btn btn-sm btn-danger" title="删除选中">删除</button>
+        </span>
+        <span class="cv-spacer"></span>
+        <button id="cv-done" class="btn btn-sm btn-primary">完成</button>
+      </div>
+      <div id="cv-stage-wrap" class="cv-stage-wrap"></div>
+      <p class="cv-hint">拖动=移动 · 拖右下角=缩放 · 双击文字=改字 · 点空白处=取消选择</p>
+    </div>
+  </div>
 
   <script src="app.js"></script>
 </body>

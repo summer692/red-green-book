@@ -4,7 +4,8 @@
   const LS_KEY = 'redgreen:v2';
   const CARD_W = 540, CARD_H = 720, EXPORT_SCALE = 2;
   const DISP_W = 250;
-  const TYPE_LABEL = { cover: '封面', bilingual: '双语分析', table: '排名表格', list: '列表', policy: '政策', text: '文本' };
+  const TYPE_LABEL = { cover: '封面', bilingual: '双语分析', table: '排名表格', list: '列表', policy: '政策', text: '文本', canvas: '自由画布' };
+  const ALIGNS = ['left', 'center', 'right'];
   const DEFAULT_FOOTER = '备注：本文所提供的信息均来源于大学官网。申请时请务必以学校官网公布的最新信息为准。';
   // 注意：用单引号包字体名，避免破坏导出时的 style="…" 双引号属性
   const FONT_STACKS = {
@@ -27,6 +28,8 @@
   const $ = (s) => document.querySelector(s);
   function mk(tag, cls, attrs) { const e = document.createElement(tag); if (cls) e.className = cls; if (attrs) for (const k in attrs) e.setAttribute(k, attrs[k]); return e; }
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  function num(v, d) { const n = parseFloat(v); return isFinite(n) ? n : d; }
   function str(v, d) { return v == null ? d : String(v); }
   function toStrArr(v, d) { return Array.isArray(v) ? v.map((x) => String(x)) : d; }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
@@ -42,6 +45,7 @@
       case 'list': return Object.assign(base, { heading: '本期项目一览', items: [{ name: '项目名称', note: '一句话说明' }] });
       case 'policy': return Object.assign(base, { title: '政策标题', points: ['要点一'] });
       case 'text': return Object.assign(base, { title: '标题', body: '正文内容……' });
+      case 'canvas': return Object.assign(base, { elements: [{ id: uid(), kind: 'text', x: 0.08, y: 0.1, w: 0.84, text: '双击编辑文字', size: 40, color: '', weight: 800, align: 'left', font: 'hei' }] });
       default: return null;
     }
   }
@@ -134,8 +138,17 @@
           </div>`;
       case 'text':
         return `<div class="tpl-text"><h2 class="big-title">${esc(p.title)}</h2><div class="text-body">${esc(p.body)}</div></div>`;
+      case 'canvas':
+        return `<div class="tpl-canvas">${(p.elements || []).map((e) => canvasElHTML(e)).join('')}</div>`;
       default: return '';
     }
+  }
+  function canvasElHTML(e) {
+    const pos = `left:${(e.x * 100).toFixed(3)}%;top:${(e.y * 100).toFixed(3)}%;width:${(e.w * 100).toFixed(3)}%;`;
+    if (e.kind === 'image') return `<div class="cv-el cv-img" style="${pos}"><img src="${e.src}" alt="" /></div>`;
+    const font = FONT_STACKS[e.font] || 'inherit';
+    const color = e.color ? e.color : 'var(--ink)';
+    return `<div class="cv-el cv-text" style="${pos}font-size:${e.size}px;color:${color};font-weight:${e.weight || 700};text-align:${e.align || 'left'};font-family:${font};">${esc(e.text)}</div>`;
   }
 
   // ---------------- 预览 ----------------
@@ -266,6 +279,13 @@
         b.appendChild(fieldText('标题', page.title, (v) => { page.title = v; touch(); }));
         b.appendChild(fieldArea('正文', page.body, (v) => { page.body = v; touch(); }, 5));
         break;
+      case 'canvas': {
+        b.appendChild(label('自由画布（' + (page.elements ? page.elements.length : 0) + ' 个元素）'));
+        const btn = mk('button', 'btn'); btn.textContent = '打开画布编辑器';
+        btn.addEventListener('click', () => openCanvasEditor(page));
+        b.appendChild(btn);
+        break;
+      }
     }
     return b;
   }
@@ -344,8 +364,14 @@
         base.items = Array.isArray(p.items) ? p.items.map((it) => ({ name: str(it && it.name, ''), note: str(it && it.note, '') })) : base.items; break;
       case 'policy': base.title = str(p.title, base.title); base.points = toStrArr(p.points, base.points); break;
       case 'text': base.title = str(p.title, base.title); base.body = str(p.body, ''); break;
+      case 'canvas': base.elements = Array.isArray(p.elements) ? p.elements.map(normEl).filter(Boolean) : base.elements; break;
     }
     return base;
+  }
+  function normEl(e) {
+    if (!e) return null;
+    if (e.kind === 'image') { if (!e.src) return null; return { id: uid(), kind: 'image', x: num(e.x, 0.1), y: num(e.y, 0.1), w: num(e.w, 0.5), src: String(e.src) }; }
+    return { id: uid(), kind: 'text', x: num(e.x, 0.1), y: num(e.y, 0.1), w: num(e.w, 0.8), text: str(e.text, ''), size: num(e.size, 36), color: str(e.color, ''), weight: num(e.weight, 700), align: ALIGNS.includes(e.align) ? e.align : 'left', font: FONT_STACKS[e.font] ? e.font : 'hei' };
   }
   function onFill() {
     const text = $('#ai-result').value; if (!text.trim()) { alert('先把 Claude 返回的 JSON 粘到下面的框里'); return; }
@@ -389,6 +415,110 @@
       for (let i = 0; i < state.pages.length; i++) { downloadDataUrl(await pageToPng(state.pages[i]), `${state.platform}-${String(i + 1).padStart(2, '0')}.png`); await sleep(300); }
       flash('已逐张下载 ' + state.pages.length + ' 张');
     } catch (e) { alert('导出失败：' + e.message); } finally { btn.disabled = false; btn.textContent = old; }
+  }
+
+  // ---------------- 自由画布编辑器 ----------------
+  let cv = null; // { page, box, sel }
+  function openCanvasEditor(page) {
+    const wrap = $('#cv-stage-wrap');
+    wrap.innerHTML = '';
+    const maxW = Math.min(540, window.innerWidth * 0.62);
+    const maxH = window.innerHeight * 0.66;
+    const scale = Math.min(maxW / CARD_W, maxH / CARD_H, 1);
+    const card = buildCard(page);
+    card.classList.add('cv-stage', 'cv-edit');
+    card.style.transform = `scale(${scale})`;
+    wrap.style.width = (CARD_W * scale) + 'px';
+    wrap.style.height = (CARD_H * scale) + 'px';
+    wrap.appendChild(card);
+    cv = { page, card, box: card.querySelector('.tpl-canvas'), sel: null };
+    const cbox = card.querySelector('.content-box');
+    cbox.addEventListener('pointerdown', (e) => { if (e.target.classList.contains('content-box') || e.target.classList.contains('tpl-canvas')) selectEl(null); });
+    rebuildCanvasEls();
+    $('#cv-modal').hidden = false;
+    updateCvToolbar();
+  }
+  function closeCanvasEditor() { $('#cv-modal').hidden = true; cv = null; save(); renderEditors(); renderPreview(); }
+
+  function rebuildCanvasEls() {
+    const box = cv.box; box.innerHTML = '';
+    cv.page.elements.forEach((e) => box.appendChild(buildEditableEl(e)));
+    [...box.children].forEach((n) => n.classList.toggle('selected', n._el === cv.sel));
+  }
+  function buildEditableEl(e) {
+    const node = mk('div', 'cv-el ' + (e.kind === 'image' ? 'cv-img' : 'cv-text'));
+    node._el = e;
+    node.style.left = (e.x * 100) + '%'; node.style.top = (e.y * 100) + '%'; node.style.width = (e.w * 100) + '%';
+    if (e.kind === 'image') {
+      const img = mk('img'); img.src = e.src; img.draggable = false; node.appendChild(img);
+    } else {
+      node.style.fontSize = e.size + 'px'; node.style.color = e.color || 'var(--ink)';
+      node.style.fontWeight = e.weight || 700; node.style.textAlign = e.align || 'left';
+      node.style.fontFamily = FONT_STACKS[e.font] || 'inherit';
+      const span = mk('span', 'cv-textspan'); span.textContent = e.text; node.appendChild(span);
+      node.addEventListener('dblclick', () => startEditText(node, e));
+    }
+    const handle = mk('div', 'cv-handle'); node.appendChild(handle);
+    node.addEventListener('pointerdown', (ev) => { if (ev.target === handle || node.classList.contains('editing')) return; startDrag(ev, e, node); });
+    node.addEventListener('click', (ev) => { ev.stopPropagation(); selectEl(e); });
+    handle.addEventListener('pointerdown', (ev) => { ev.stopPropagation(); startResize(ev, e, node); });
+    return node;
+  }
+  function selNode() { return [...cv.box.children].find((n) => n._el === cv.sel); }
+  function selectEl(e) { cv.sel = e; [...cv.box.children].forEach((n) => n.classList.toggle('selected', n._el === e)); updateCvToolbar(); }
+  function boxRect() { return cv.box.getBoundingClientRect(); }
+  function startDrag(ev, e, node) {
+    ev.preventDefault(); selectEl(e);
+    const r = boxRect(), sx = ev.clientX, sy = ev.clientY, ox = e.x, oy = e.y;
+    const mv = (e2) => { e.x = clamp(ox + (e2.clientX - sx) / r.width, 0, 1); e.y = clamp(oy + (e2.clientY - sy) / r.height, 0, 1); node.style.left = (e.x * 100) + '%'; node.style.top = (e.y * 100) + '%'; };
+    const up = () => { document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); save(); };
+    document.addEventListener('pointermove', mv); document.addEventListener('pointerup', up);
+  }
+  function startResize(ev, e, node) {
+    ev.preventDefault();
+    const r = boxRect(), sx = ev.clientX, ow = e.w;
+    const mv = (e2) => { e.w = clamp(ow + (e2.clientX - sx) / r.width, 0.05, 1); node.style.width = (e.w * 100) + '%'; };
+    const up = () => { document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); save(); };
+    document.addEventListener('pointermove', mv); document.addEventListener('pointerup', up);
+  }
+  function startEditText(node, e) {
+    const span = node.querySelector('.cv-textspan');
+    node.classList.add('editing'); span.contentEditable = 'true'; span.focus();
+    const fin = () => { span.contentEditable = 'false'; node.classList.remove('editing'); e.text = span.innerText; span.removeEventListener('blur', fin); save(); };
+    span.addEventListener('blur', fin);
+  }
+  function updateCvToolbar() {
+    const tools = document.querySelector('.cv-sel-tools');
+    if (!cv || !cv.sel) { tools.hidden = true; return; }
+    tools.hidden = false;
+    const isText = cv.sel.kind === 'text';
+    ['#cv-size', '#cv-color', '#cv-bold', '#cv-align'].forEach((s) => { $(s).style.display = isText ? '' : 'none'; });
+    document.querySelector('.cv-tool-lbl').style.display = isText ? '' : 'none';
+    if (isText) { $('#cv-size').value = cv.sel.size; $('#cv-color').value = cv.sel.color || '#191970'; }
+  }
+  function wireCanvas() {
+    $('#cv-add-text').addEventListener('click', () => {
+      const e = { id: uid(), kind: 'text', x: 0.1, y: 0.12, w: 0.8, text: '新文字', size: 40, color: '', weight: 800, align: 'left', font: state.coverFont || 'hei' };
+      cv.page.elements.push(e); rebuildCanvasEls(); selectEl(e); save();
+    });
+    bindUpload('#cv-add-img', (data) => {
+      const e = { id: uid(), kind: 'image', x: 0.2, y: 0.3, w: 0.5, src: data };
+      cv.page.elements.push(e); rebuildCanvasEls(); selectEl(e); save();
+    });
+    $('#cv-size').addEventListener('input', () => { if (!cv.sel) return; cv.sel.size = num($('#cv-size').value, cv.sel.size); const n = selNode(); if (n) n.style.fontSize = cv.sel.size + 'px'; save(); });
+    $('#cv-color').addEventListener('input', () => { if (!cv.sel) return; cv.sel.color = $('#cv-color').value; const n = selNode(); if (n) n.style.color = cv.sel.color; save(); });
+    $('#cv-bold').addEventListener('click', () => { if (!cv.sel) return; cv.sel.weight = (cv.sel.weight >= 700) ? 400 : 800; const n = selNode(); if (n) n.style.fontWeight = cv.sel.weight; save(); });
+    $('#cv-align').addEventListener('click', () => { if (!cv.sel) return; cv.sel.align = ALIGNS[(ALIGNS.indexOf(cv.sel.align) + 1) % 3]; const n = selNode(); if (n) n.style.textAlign = cv.sel.align; save(); });
+    $('#cv-front').addEventListener('click', () => { reorderSel(1); });
+    $('#cv-back').addEventListener('click', () => { reorderSel(-1); });
+    $('#cv-del').addEventListener('click', () => { if (!cv.sel) return; const i = cv.page.elements.indexOf(cv.sel); if (i >= 0) cv.page.elements.splice(i, 1); cv.sel = null; rebuildCanvasEls(); updateCvToolbar(); save(); });
+    $('#cv-done').addEventListener('click', closeCanvasEditor);
+  }
+  function reorderSel(dir) {
+    if (!cv.sel) return;
+    const arr = cv.page.elements, i = arr.indexOf(cv.sel), j = i + dir;
+    if (i < 0 || j < 0 || j >= arr.length) return;
+    arr.splice(i, 1); arr.splice(j, 0, cv.sel); rebuildCanvasEls(); save();
   }
 
   // ---------------- 平台切换 / 设置 / 提示 ----------------
@@ -464,7 +594,7 @@
   function init() {
     document.documentElement.dataset.platform = state.platform;
     document.querySelectorAll('.plat-btn').forEach((b) => b.classList.toggle('is-active', b.dataset.platform === state.platform));
-    wire(); renderEditors(); renderPreview(); loadAssets();
+    wire(); wireCanvas(); renderEditors(); renderPreview(); loadAssets();
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();
