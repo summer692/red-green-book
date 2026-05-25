@@ -236,7 +236,26 @@
   function imgNat(url) { return new Promise((res) => { const i = new Image(); i.onload = () => res({ w: i.naturalWidth, h: i.naturalHeight }); i.onerror = () => res({ w: 0, h: 0 }); i.src = url; }); }
   function resetLogoAdjust() { D().logoScale = 1; D().logoOffsetX = 0; D().logoOffsetY = 0; D().logoCrop = { x: 0, y: 0, w: 1, h: 1 }; }
   let state = loadState();
-  function save() { try { localStorage.setItem(LS_KEY, JSON.stringify(state)); return true; } catch { return false; } }
+  function save() { let ok = true; try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch { ok = false; } scheduleHist(); return ok; }
+  // ---------------- 撤销 / 重做（防抖快照） ----------------
+  let history = [], histIdx = -1, histTimer = null, restoring = false;
+  function histInit() { history = [JSON.stringify(state)]; histIdx = 0; updateUndoBtns(); }
+  function histPush() { if (restoring) return; const s = JSON.stringify(state); if (history[histIdx] === s) return; history = history.slice(0, histIdx + 1); history.push(s); if (history.length > 50) history.shift(); histIdx = history.length - 1; updateUndoBtns(); }
+  function scheduleHist() { if (restoring) return; clearTimeout(histTimer); histTimer = setTimeout(histPush, 500); }
+  function histRestore(idx) {
+    if (idx < 0 || idx >= history.length) return;
+    restoring = true; clearTimeout(histTimer); histIdx = idx;
+    try { state = JSON.parse(history[idx]); } catch (e) { restoring = false; return; }
+    try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (_) {}
+    document.documentElement.dataset.platform = state.platform;
+    if (typeof cv !== 'undefined' && cv) { $('#cv-modal').hidden = true; cv = null; }
+    document.querySelectorAll('.plat-btn').forEach((b) => b.classList.toggle('is-active', b.dataset.platform === state.platform));
+    setUiColor(state.uiColor); refreshSettingsUI(); renderEditors(); renderPreview();
+    restoring = false; updateUndoBtns();
+  }
+  function undo() { if (histIdx > 0) histRestore(histIdx - 1); }
+  function redo() { if (histIdx < history.length - 1) histRestore(histIdx + 1); }
+  function updateUndoBtns() { const u = $('#btn-undo'), r = $('#btn-redo'); if (u) u.disabled = histIdx <= 0; if (r) r.disabled = histIdx >= history.length - 1; }
   function touch() { save(); renderPreview(); }
   function restructure() { save(); renderEditors(); renderPreview(); }
 
@@ -543,6 +562,13 @@
     b.appendChild(label('本页间距（只影响这一页）'));
     b.appendChild(pageRange('报头间距', page, 'mastheadGap', 18, 0, 64));
     if (state.platform === 'xls') b.appendChild(pageRange('内容边距', page, 'framePad', 22, 4, 40));
+    if (page.type === 'canvas') {
+      const row = mk('div', 'lg-inline'); const sl = mk('span'); sl.textContent = '左右边距'; row.appendChild(sl);
+      const inp = mk('input', 'lg-mini', { type: 'range', min: '0', max: '25', step: '1' });
+      inp.value = Math.round((page.sideMargin != null ? page.sideMargin : 0.06) * 100);
+      inp.addEventListener('input', () => { const m = num(inp.value, 6) / 100; page.sideMargin = m; (page.elements || []).forEach((e) => { if (e.kind === 'text') { e.x = m; e.w = Math.max(0.1, 1 - 2 * m); } }); touch(); });
+      row.appendChild(inp); b.appendChild(row);
+    }
     return b;
   }
   function convertPageToCanvas(page) {
@@ -975,7 +1001,8 @@
     if (!cv || !cv.page.elements.length) return;
     const texts = cv.page.elements.filter((e) => e.kind === 'text').sort((a, b) => a.y - b.y);
     if (!texts.length) return;
-    texts.forEach((e) => { e.x = 0.06; e.w = 0.88; });
+    const sm = cv.page.sideMargin != null ? cv.page.sideMargin : 0.06;
+    texts.forEach((e) => { e.x = sm; e.w = Math.max(0.1, 1 - 2 * sm); });
     let y = 0;
     for (let iter = 0; iter < 6; iter++) {
       rebuildCanvasEls();
@@ -1133,6 +1160,14 @@
     document.querySelectorAll('[data-add]').forEach((b) => b.addEventListener('click', () => { D().pages.push(defaultPage(b.dataset.add, deckOpts())); restructure(); }));
     $('#btn-download-all').addEventListener('click', exportAll);
     $('#btn-share').addEventListener('click', shareAll);
+    $('#btn-undo').addEventListener('click', undo);
+    $('#btn-redo').addEventListener('click', redo);
+    document.addEventListener('keydown', (e) => {
+      if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'z') return;
+      const ae = document.activeElement;
+      if (ae && (ae.isContentEditable || /^(INPUT|TEXTAREA)$/.test(ae.tagName))) return; // 让输入框用原生撤销
+      e.preventDefault(); if (e.shiftKey) redo(); else undo();
+    });
     $('#copy-gen').addEventListener('click', onCopyGen);
     $('#copy-gencopy').addEventListener('click', onCopyGenCopy);
     $('#copy-fill').addEventListener('click', onCopyFill);
@@ -1186,6 +1221,7 @@
     refreshSettingsUI();
     noteify();
     renderEditors(); renderPreview(); loadAssets();
+    histInit();
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();
