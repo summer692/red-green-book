@@ -107,7 +107,7 @@
   // ---------------- 状态 ----------------
   function templateDefault(type) {
     switch (type) {
-      case 'cover': return { title: '香港大学\n2026 FALL\n工学院新增', showMemoji: true };
+      case 'cover': return { title: '', showMemoji: true };
       case 'bilingual': return { heading: '拒签原因一：你没有证明这门课非去澳洲读不可', en: '', cn: '', actionTitle: '要怎么做?', steps: ['', ''] };
       case 'list': return { heading: '本期项目一览', items: [{ name: '项目名称', note: '一句话说明' }] };
       case 'policy': return { title: '政策标题', points: ['要点一'] };
@@ -142,7 +142,7 @@
     };
     switch (type) {
       case 'cover':
-        push(c.title || '', 80, TITLE, 900, 'center');
+        if (c.title) push(c.title, 80, TITLE, 900, 'center');
         if (c.showMemoji !== false && memoji) els.push(coverMemojiEl(memoji));
         break;
       case 'text': push(c.title || '', 46, HEAD, 900); push(c.body || '', 24, INK, 400); break;
@@ -615,7 +615,7 @@
     };
     switch (page.type) {
       case 'cover':
-        push(page.title, 80, title, 900, 'left');
+        if (page.title) push(page.title, 80, title, 900, 'left');
         if (page.showMemoji !== false && (D().memojiData || memojiDataUri)) els.push(coverMemojiEl(D().memojiData || memojiDataUri));
         break;
       case 'text': push(page.title, 46, heading, 900); push(page.body, 24, ink, 400); break;
