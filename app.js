@@ -1002,7 +1002,7 @@
     const texts = cv.page.elements.filter((e) => e.kind === 'text').sort((a, b) => a.y - b.y);
     if (!texts.length) return;
     const sm = cv.page.sideMargin != null ? cv.page.sideMargin : 0.06;
-    texts.forEach((e) => { e.x = sm; e.w = Math.max(0.1, 1 - 2 * sm); });
+    texts.forEach((e) => { e.x = sm; }); // 仅左对齐 + 下方等间距堆叠；保留各自宽度，不强制等宽
     let y = 0;
     for (let iter = 0; iter < 6; iter++) {
       rebuildCanvasEls();
