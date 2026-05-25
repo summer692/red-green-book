@@ -1081,8 +1081,9 @@
     cv = { page, card, box: card.querySelector('.tpl-canvas'), sel: null, selSet: [] };
     cv.refs = ['cv-ref-v', 'cv-ref-h', 'cv-ref-t1', 'cv-ref-t2'].map((c) => mk('div', 'cv-ref ' + c));
     cv.gv = mk('div', 'cv-guide cv-guide-v'); cv.gh = mk('div', 'cv-guide cv-guide-h');
-    const cbox = card.querySelector('.content-box');
-    cbox.addEventListener('pointerdown', (e) => { if (e.target.classList.contains('content-box') || e.target.classList.contains('tpl-canvas')) selectEl(null); });
+    // 点击画布空白处即取消选择：只要落点不在某个元素(.cv-el)上就清空选择。
+    // 旧逻辑只认 content-box/tpl-canvas 本身，文本框的包围盒盖住了行间空白，导致空白处其实点在文本框上，取消全选要靠运气。
+    card.addEventListener('pointerdown', (e) => { if (!e.target.closest('.cv-el')) selectEl(null); });
     rebuildCanvasEls();
     $('#cv-modal').hidden = false;
     updateCvToolbar();
