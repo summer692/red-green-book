@@ -106,7 +106,7 @@
   // ---------------- 状态 ----------------
   function templateDefault(type) {
     switch (type) {
-      case 'cover': return { title: '', showMemoji: true };
+      case 'cover': return { title: '香港大学\n2026 FALL\n工学院新增', showMemoji: true };
       case 'bilingual': return { heading: '拒签原因一：你没有证明这门课非去澳洲读不可', en: '', cn: '', actionTitle: '要怎么做?', steps: ['', ''] };
       case 'list': return { heading: '本期项目一览', items: [{ name: '项目名称', note: '一句话说明' }] };
       case 'policy': return { title: '政策标题', points: ['要点一'] };
