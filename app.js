@@ -896,6 +896,29 @@
 
   // ---------------- 自由画布编辑器 ----------------
   let cv = null; // { page, box, sel }
+  let cvClipboard = [], cvClipFrom = null; // 画布元素剪贴板（跨页面、含格式）
+  function copySel() {
+    if (!cv) return;
+    const set = (cv.selSet || []).filter(Boolean);
+    if (!set.length) return;
+    cvClipboard = set.map((e) => { const c = clone(e); delete c.id; return c; });
+    cvClipFrom = cv.page.id || null;
+    flash('已复制 ' + cvClipboard.length + ' 个元素（含格式），可粘到别的页面');
+  }
+  function pasteClip() {
+    if (!cv || !cvClipboard.length) return;
+    const off = (cvClipFrom && cvClipFrom === cv.page.id) ? 0.03 : 0; // 同页粘贴稍微错开；跨页保持原位
+    const made = cvClipboard.map((c) => {
+      const e = clone(c); e.id = uid();
+      if (typeof e.x === 'number') e.x = clamp(e.x + off, 0, 0.98);
+      if (typeof e.y === 'number') e.y = clamp(e.y + off, 0, 0.98);
+      cv.page.elements.push(e); return e;
+    });
+    rebuildCanvasEls();
+    cv.selSet = made.slice(); cv.sel = made[made.length - 1];
+    applyCvSelClasses(); updateCvToolbar(); save();
+    flash('已粘贴 ' + made.length + ' 个元素');
+  }
   function openCanvasEditor(page) {
     const wrap = $('#cv-stage-wrap');
     wrap.innerHTML = '';
@@ -1056,13 +1079,21 @@
     $('#cv-ls').addEventListener('input', () => { const v = num($('#cv-ls').value, 0); applyToSelText((e) => { e.ls = v; }); });
     $('#cv-front').addEventListener('click', () => { reorderSel(1); });
     $('#cv-back').addEventListener('click', () => { reorderSel(-1); });
+    $('#cv-copy').addEventListener('click', copySel);
+    $('#cv-paste').addEventListener('click', pasteClip);
     $('#cv-del').addEventListener('click', () => { const set = cv.selSet || []; if (!set.length) return; cv.page.elements = cv.page.elements.filter((e) => !set.includes(e)); cv.selSet = []; cv.sel = null; rebuildCanvasEls(); updateCvToolbar(); save(); });
     $('#cv-tidy').addEventListener('click', tidyCanvas);
     $('#cv-done').addEventListener('click', closeCanvasEditor);
     document.addEventListener('keydown', (e) => {
-      if (!cv || $('#cv-modal').hidden || !(cv.selSet && cv.selSet.length)) return;
+      if (!cv || $('#cv-modal').hidden) return;
       const ae = document.activeElement;
-      if (ae && (ae.isContentEditable || /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName))) return;
+      const editing = ae && (ae.isContentEditable || /^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName));
+      if ((e.metaKey || e.ctrlKey) && !editing) { // 复制/粘贴（文字编辑态下交给系统原生复制粘贴）
+        const k = e.key.toLowerCase();
+        if (k === 'c') { if ((cv.selSet || []).length) { copySel(); e.preventDefault(); } return; }
+        if (k === 'v') { if (cvClipboard.length) { pasteClip(); e.preventDefault(); } return; }
+      }
+      if (editing || !(cv.selSet && cv.selSet.length)) return;
       const map = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
       const dir = map[e.key]; if (!dir) return;
       e.preventDefault();
