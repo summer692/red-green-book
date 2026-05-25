@@ -72,7 +72,7 @@
   }
   function populateFontSelects() {
     const html = FONT_GROUPS.map(([g, keys]) => '<optgroup label="' + g + '">' + keys.map((k) => '<option value="' + k + '">' + fontLabel(k) + '</option>').join('') + '</optgroup>').join('');
-    ['#set-font', '#cv-font'].forEach((sel) => { const el = $(sel); if (el) el.innerHTML = html; });
+    ['#set-font', '#cv-font', '#set-label-font'].forEach((sel) => { const el = $(sel); if (el) el.innerHTML = html; });
   }
   function coverFontStack() { return FONT_STACKS[D().coverFont] || FONT_STACKS.hei; }
   const THEME_DEFAULTS = { xhs: { accent: '#191970', title: '#191970', heading: '#191970', ink: '#191970', thead: '#191970', theadInk: '#ffffff' }, xls: { accent: '#1e66cc', title: '#1e66cc', heading: '#e5352a', ink: '#1c1c1e', thead: '#4a2d6e', theadInk: '#ffffff' } };
@@ -167,7 +167,7 @@
   function newDeck() {
     return {
       pages: [defaultPage('cover')],
-      brandLabel: '签证信息', brandLabelSize: 24, brandLabelOffsetX: 0, brandLabelOffsetY: 0, framePad: 22, footerNote: DEFAULT_FOOTER, coverFont: 'hei',
+      brandLabel: '签证信息', brandLabelSize: 24, brandLabelOffsetX: 0, brandLabelOffsetY: 0, brandLabelFont: 'hei', framePad: 22, footerNote: DEFAULT_FOOTER, coverFont: 'hei',
       sloganSize: 24, sloganOffsetX: 0, sloganOffsetY: 0,
       logoData: null, logoNatW: 0, logoNatH: 0, logoRecolor: true,
       logoScale: 1, logoOffsetX: 0, logoOffsetY: 0, logoCrop: { x: 0, y: 0, w: 1, h: 1 },
@@ -184,6 +184,7 @@
     if (typeof d.brandLabelSize !== 'number') d.brandLabelSize = 24;
     if (typeof d.brandLabelOffsetX !== 'number') d.brandLabelOffsetX = 0;
     if (typeof d.brandLabelOffsetY !== 'number') d.brandLabelOffsetY = 0;
+    if (!FONT_STACKS[d.brandLabelFont]) d.brandLabelFont = 'hei';
     if (typeof d.framePad !== 'number') d.framePad = 22;
     if (typeof d.footerNote !== 'string') d.footerNote = DEFAULT_FOOTER;
     if (!FONT_STACKS[d.coverFont]) d.coverFont = 'hei';
@@ -304,7 +305,7 @@
           <div class="mh-right" style="transform:translate(${D().sloganOffsetX || 0}px,${D().sloganOffsetY || 0}px)"><div class="mh-line"></div><div class="mh-slogan" style="font-size:${D().sloganSize || 24}px">LIGHT UP THE FUTURE!</div></div>
         </div>`;
     }
-    return `<div class="masthead mh-xls">${logoMarkup()}${D().brandLabel ? `<div class="brand-label" style="font-size:${D().brandLabelSize || 24}px;transform:translate(${D().brandLabelOffsetX || 0}px,${D().brandLabelOffsetY || 0}px)">${esc(D().brandLabel)}</div>` : ''}</div>`;
+    return `<div class="masthead mh-xls">${logoMarkup()}${D().brandLabel ? `<div class="brand-label" style="font-size:${D().brandLabelSize || 24}px;font-family:${FONT_STACKS[D().brandLabelFont] || 'inherit'};transform:translate(${D().brandLabelOffsetX || 0}px,${D().brandLabelOffsetY || 0}px)">${esc(D().brandLabel)}</div>` : ''}</div>`;
   }
 
   function footerHTML(page) {
@@ -793,12 +794,13 @@
   }
   async function inlineWebFonts(page) {
     const used = {};
-    (page.elements || []).forEach((e) => {
-      if (e.kind !== 'text') return;
-      const w = WEBFONTS[e.font]; if (!w) return;
-      (used[e.font] = used[e.font] || new Set());
-      for (const ch of String(e.text || '')) used[e.font].add(ch);
-    });
+    const addUse = (fontKey, text) => {
+      if (!WEBFONTS[fontKey]) return;
+      (used[fontKey] = used[fontKey] || new Set());
+      for (const ch of String(text || '')) used[fontKey].add(ch);
+    };
+    (page.elements || []).forEach((e) => { if (e.kind === 'text') addUse(e.font, e.text); });
+    if (state.platform === 'xls' && D().brandLabel) addUse(D().brandLabelFont, D().brandLabel);
     let out = '';
     for (const key in used) {
       const w = WEBFONTS[key];
@@ -1064,6 +1066,7 @@
   function refreshSettingsUI() {
     const d = D();
     $('#set-label').value = d.brandLabel;
+    $('#set-label-font').value = FONT_STACKS[d.brandLabelFont] ? d.brandLabelFont : 'hei';
     $('#set-label-size').value = d.brandLabelSize;
     $('#set-label-x').value = d.brandLabelOffsetX;
     $('#set-label-y').value = d.brandLabelOffsetY;
@@ -1215,6 +1218,7 @@
     $('#btn-ai-fill').addEventListener('click', onFill);
     const lbl = $('#set-label'); lbl.value = D().brandLabel; lbl.addEventListener('input', () => { D().brandLabel = lbl.value; touch(); });
     const lblSize = $('#set-label-size'); lblSize.value = D().brandLabelSize; lblSize.addEventListener('input', () => { D().brandLabelSize = num(lblSize.value, 24); touch(); });
+    const lblFont = $('#set-label-font'); lblFont.addEventListener('change', () => { D().brandLabelFont = lblFont.value; ensureWebFont(lblFont.value); touch(); });
     $('#set-label-x').addEventListener('input', () => { D().brandLabelOffsetX = num($('#set-label-x').value, 0); touch(); });
     $('#set-label-y').addEventListener('input', () => { D().brandLabelOffsetY = num($('#set-label-y').value, 0); touch(); });
     $('#set-label-reset').addEventListener('click', () => { D().brandLabelOffsetX = 0; D().brandLabelOffsetY = 0; $('#set-label-x').value = 0; $('#set-label-y').value = 0; touch(); flash('已复原栏目名位置'); });
