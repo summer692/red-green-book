@@ -160,7 +160,8 @@
     if (type === 'canvas') return { id: uid(), type: 'canvas', preset: 'canvas', elements: [{ id: uid(), kind: 'text', x: 0.08, y: 0.1, w: 0.84, text: '双击编辑文字', size: 40, color: '', weight: 800, align: 'left', font: 'hei' }] };
     return presetPage(type, opts || {});
   }
-  function deckOpts() { return { coverFont: D().coverFont, memojiData: D().memojiData }; }
+  // 人物只属于小红书：小绿书封面不自动添加
+  function deckOpts() { return { coverFont: D().coverFont, memojiData: state.platform === 'xhs' ? D().memojiData : null }; }
   const DEF_CROP = { x: 0, y: 0, w: 1, h: 1 };
   function newDeck() {
     return {
@@ -175,7 +176,7 @@
       mastheadGap: 18,
     };
   }
-  function normalizeDeck(s) {
+  function normalizeDeck(s, plat) {
     const d = (s && typeof s === 'object') ? s : {};
     if (!Array.isArray(d.pages)) d.pages = [defaultPage('cover')];
     if (typeof d.brandLabel !== 'string') d.brandLabel = '签证信息';
@@ -206,7 +207,7 @@
     if (!d.colors || typeof d.colors !== 'object') d.colors = emptyColors();
     else { COLOR_KEYS.forEach((k) => { if (typeof d.colors[k] !== 'string') d.colors[k] = ''; }); }
     if (typeof d.mastheadGap !== 'number') d.mastheadGap = 18;
-    d.pages = d.pages.map((pg) => migratePage(pg, d));
+    d.pages = d.pages.map((pg) => migratePage(pg, d, plat));
     return d;
   }
   // 双语分析已停用：转成文本内容
@@ -217,13 +218,13 @@
     return { type: 'text', title: str(p.heading, ''), body: parts.join('\n') };
   }
   // 旧模板页 → 画布页（保留内容）；表格/画布页保持
-  function migratePage(pg, d) {
+  function migratePage(pg, d, plat) {
     if (!pg || typeof pg !== 'object') return defaultPage('canvas');
     if (pg.type === 'canvas') { if (!Array.isArray(pg.elements)) pg.elements = []; if (typeof pg.preset !== 'string' || pg.preset === 'bilingual') pg.preset = pg.preset === 'bilingual' ? 'text' : (typeof pg.preset === 'string' ? pg.preset : 'canvas'); return pg; }
     if (pg.type === 'table') { if (!Array.isArray(pg.columns)) pg.columns = ['列1', '列2']; if (!Array.isArray(pg.rows)) pg.rows = []; if (typeof pg.title !== 'string') pg.title = ''; return pg; }
     if (pg.type === 'bilingual') pg = Object.assign({ id: pg.id }, biToText(pg));
     if (['cover', 'list', 'policy', 'text'].includes(pg.type)) {
-      return { id: pg.id || uid(), type: 'canvas', preset: pg.type, noFooter: pg.type === 'cover', elements: elementsFromContent(pg.type, pg, { coverFont: d.coverFont, memojiData: d.memojiData }) };
+      return { id: pg.id || uid(), type: 'canvas', preset: pg.type, noFooter: pg.type === 'cover', elements: elementsFromContent(pg.type, pg, { coverFont: d.coverFont, memojiData: plat === 'xhs' ? d.memojiData : null }) };
     }
     return defaultPage('canvas');
   }
@@ -265,8 +266,8 @@
       if (from <= 3) s = migrateMemojiAnchor(s);
       const platform = (s.platform === 'xls') ? 'xls' : 'xhs';
       const uiColor = typeof s.uiColor === 'string' ? s.uiColor : 'alipay';
-      if (s.decks && s.decks.xhs && s.decks.xls) return { platform, uiColor, decks: { xhs: normalizeDeck(s.decks.xhs), xls: normalizeDeck(s.decks.xls) } };
-      if (Array.isArray(s.pages)) { const d = normalizeDeck(s); return { platform, uiColor, decks: { xhs: d, xls: clone(d) } }; } // 旧版单 deck → 两平台各一份（互不联动）
+      if (s.decks && s.decks.xhs && s.decks.xls) return { platform, uiColor, decks: { xhs: normalizeDeck(s.decks.xhs, 'xhs'), xls: normalizeDeck(s.decks.xls, 'xls') } };
+      if (Array.isArray(s.pages)) { const d = normalizeDeck(s, 'xhs'); return { platform, uiColor, decks: { xhs: d, xls: clone(d) } }; } // 旧版单 deck → 两平台各一份（互不联动）
       return freshState();
     } catch { return freshState(); }
   }
@@ -632,7 +633,7 @@
     switch (page.type) {
       case 'cover':
         if (page.title) push(page.title, 80, title, 900, 'left');
-        if (page.showMemoji !== false && (D().memojiData || memojiDataUri)) els.push(coverMemojiEl(D().memojiData || memojiDataUri));
+        if (page.showMemoji !== false && state.platform === 'xhs' && (D().memojiData || memojiDataUri)) els.push(coverMemojiEl(D().memojiData || memojiDataUri));
         break;
       case 'text': push(page.title, 46, heading, 900); push(page.body, 24, ink, 400); break;
       case 'policy': push(page.title, 42, heading, 900); (page.points || []).forEach((pt) => push('· ' + pt, 24, ink, 500)); break;
