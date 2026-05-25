@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  const LS_KEY = 'redgreen:v6';
+  const LS_KEY = 'redgreen:v7';
   const CARD_W = 540, CARD_H = 720, EXPORT_SCALE = 2;
   const DISP_W = 250;
   const TYPE_LABEL = { cover: '封面', bilingual: '双语分析', table: '排名表格', list: '列表', policy: '政策', text: '文本', canvas: '自由画布' };
@@ -53,15 +53,22 @@
     pacifico: { label: 'Pacifico', g: 'Pacifico', fam: 'Pacifico', fb: 'cursive' },
   };
   for (const k in WEBFONTS) FONT_STACKS[k] = "'" + WEBFONTS[k].fam + "', " + WEBFONTS[k].fb;
+  // 内置自带字体（开源·免费可商用，woff2 随仓库；预览用 themes.css 的 @font-face，导出时内联 base64）
+  const LOCALFONTS = {
+    deyi: { label: '得意黑', fam: 'EduDeyi', file: 'assets/fonts/SmileySans-Oblique.woff2', fb: "'PingFang SC',sans-serif" },
+    swei: { label: '狮尾黑体', fam: 'EduSwei', file: 'assets/fonts/SweiSansCJKsc-Black.woff2', fb: "'PingFang SC',sans-serif" },
+  };
+  for (const k in LOCALFONTS) FONT_STACKS[k] = "'" + LOCALFONTS[k].fam + "', " + LOCALFONTS[k].fb;
   const FONT_LABELS = { hei: '黑体', yuan: '圆体', kai: '楷体', song: '宋体', libian: '隶书', weibei: '魏碑', yuppy: '雅痞', impact: 'Impact', futura: 'Futura', helvetica: 'Helvetica', georgia: 'Georgia', times: 'Times', courier: 'Courier', custom: '自定义(assets/fonts)' };
   const FONT_GROUPS = [
+    ['标题·自带', ['deyi', 'swei']],
     ['系统·中文', ['hei', 'yuan', 'kai', 'song', 'libian', 'weibei', 'yuppy']],
     ['系统·英文', ['impact', 'futura', 'helvetica', 'georgia', 'times', 'courier']],
     ['网络·中文', ['notosans', 'notoserif', 'huangyou', 'kuaile', 'xiaowei', 'mashan', 'longcang', 'zhimang']],
     ['网络·英文', ['anton', 'bebas', 'oswald', 'montserrat', 'poppins', 'playfair', 'lobster', 'pacifico']],
     ['自定义', ['custom']],
   ];
-  function fontLabel(k) { return WEBFONTS[k] ? WEBFONTS[k].label : (FONT_LABELS[k] || k); }
+  function fontLabel(k) { return WEBFONTS[k] ? WEBFONTS[k].label : (LOCALFONTS[k] ? LOCALFONTS[k].label : (FONT_LABELS[k] || k)); }
   const loadedWebFonts = new Set();
   function ensureWebFont(key) {
     const w = WEBFONTS[key]; if (!w || loadedWebFonts.has(key)) return;
@@ -205,7 +212,7 @@
   function newDeck() {
     return {
       pages: [defaultPage('cover')],
-      brandLabel: '签证信息', brandLabelSize: 24, brandLabelOffsetX: 0, brandLabelOffsetY: 0, brandLabelFont: 'hei', framePad: 0, footerNote: DEFAULT_FOOTER, coverFont: 'notosans',
+      brandLabel: '签证信息', brandLabelSize: 24, brandLabelOffsetX: 0, brandLabelOffsetY: 0, brandLabelFont: 'hei', framePad: 0, footerNote: DEFAULT_FOOTER, coverFont: 'deyi',
       sloganSize: 24, sloganOffsetX: 0, sloganOffsetY: 0,
       logoData: null, logoNatW: 0, logoNatH: 0, logoRecolor: true,
       logoScale: 1, logoOffsetX: 0, logoOffsetY: 0, logoCrop: { x: 0, y: 0, w: 1, h: 1 },
@@ -306,14 +313,14 @@
     (s.decks ? [s.decks.xhs, s.decks.xls] : [s]).forEach(fixDeck);
     return s;
   }
-  // 封面默认字体改为思源黑体 Heavy：同步更新已有封面页文字元素
-  function migrateCoverFontNotosans(s) {
+  // 切换封面字体：同步更新已有封面页文字元素（封面字体是烙在元素上的）
+  function setAllDecksCoverFont(s, key) {
     const fixDeck = (d) => {
       if (!d) return;
-      d.coverFont = 'notosans';
+      d.coverFont = key;
       (d.pages || []).forEach((pg) => {
         if (!pg || pg.type !== 'canvas' || pg.preset !== 'cover') return;
-        (pg.elements || []).forEach((el) => { if (el && el.kind === 'text') el.font = 'notosans'; });
+        (pg.elements || []).forEach((el) => { if (el && el.kind === 'text') el.font = key; });
       });
     };
     (s.decks ? [s.decks.xhs, s.decks.xls] : [s]).forEach(fixDeck);
@@ -321,7 +328,8 @@
   }
   function loadState() {
     try {
-      let raw = localStorage.getItem(LS_KEY), from = 6;
+      let raw = localStorage.getItem(LS_KEY), from = 7;
+      if (raw == null) { raw = localStorage.getItem('redgreen:v6'); if (raw != null) from = 6; }
       if (raw == null) { raw = localStorage.getItem('redgreen:v5'); if (raw != null) from = 5; }
       if (raw == null) { raw = localStorage.getItem('redgreen:v4'); if (raw != null) from = 4; }
       if (raw == null) { raw = localStorage.getItem('redgreen:v3'); if (raw != null) from = 3; }
@@ -331,7 +339,8 @@
       if (from <= 2) s = migrateFramePad(s);
       if (from <= 3) s = migrateMemojiAnchor(s);
       if (from <= 4) s = migrateStripPolicyDots(s);
-      if (from <= 5) s = migrateCoverFontNotosans(s);
+      if (from <= 5) s = setAllDecksCoverFont(s, 'notosans');
+      if (from <= 6) s = setAllDecksCoverFont(s, 'deyi');
       const platform = (s.platform === 'xls') ? 'xls' : 'xhs';
       const uiColor = typeof s.uiColor === 'string' ? s.uiColor : 'alipay';
       if (s.decks && s.decks.xhs && s.decks.xls) return { platform, uiColor, decks: { xhs: normalizeDeck(s.decks.xhs, 'xhs'), xls: normalizeDeck(s.decks.xls, 'xls') } };
@@ -936,8 +945,28 @@
     }
     return out;
   }
+  const localFontB64 = {};
+  async function inlineLocalFonts(page) {
+    const keys = new Set();
+    const add = (k) => { if (LOCALFONTS[k]) keys.add(k); };
+    (page.elements || []).forEach((e) => { if (e.kind === 'text') add(e.font); });
+    if (state.platform === 'xls' && D().brandLabel) add(D().brandLabelFont);
+    let out = '';
+    for (const key of keys) {
+      const lf = LOCALFONTS[key];
+      if (localFontB64[key] == null) {
+        try {
+          const buf = new Uint8Array(await fetch(lf.file, { cache: 'force-cache' }).then((r) => r.arrayBuffer()));
+          let bin = ''; for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
+          localFontB64[key] = btoa(bin);
+        } catch (e) { localFontB64[key] = ''; }
+      }
+      if (localFontB64[key]) out += `@font-face{font-family:"${lf.fam}";src:url(data:font/woff2;base64,${localFontB64[key]}) format("woff2");font-weight:100 900;font-display:block;}\n`;
+    }
+    return out;
+  }
   async function pageToPng(page) {
-    const css = exportFontFace() + '\n' + (await inlineWebFonts(page)) + '\n' + (await getCSS());
+    const css = exportFontFace() + '\n' + (await inlineWebFonts(page)) + '\n' + (await inlineLocalFonts(page)) + '\n' + (await getCSS());
     const inner = `<div class="page-card" data-platform="${state.platform}" style="width:${CARD_W}px;height:${CARD_H}px;transform:none;--cover-font:${coverFontStack()};--frame-pad:${pgFramePad(page)}px;--mh-gap:${pgMhGap(page)}px;${deckColorStyle()}">${buildCardHTML(page)}</div>`;
     const svg =
       `<svg xmlns="http://www.w3.org/2000/svg" width="${CARD_W}" height="${CARD_H}">` +

@@ -18,6 +18,20 @@
   font-display: swap;
 }
 
+/* 内置标题字体（开源·免费可商用，SIL OFL，文件随仓库自带） */
+@font-face {
+  font-family: "EduDeyi";        /* 得意黑 Smiley Sans */
+  src: url("assets/fonts/SmileySans-Oblique.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: "EduSwei";        /* 狮尾黑体 Swei Sans CJK SC Black */
+  src: url("assets/fonts/SweiSansCJKsc-Black.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
 /* ---------- 小红书：报头黑色 + 大字藏蓝（封面色号 #191970） ---------- */
 [data-platform="xhs"] {
   --ui-accent: #191970;
