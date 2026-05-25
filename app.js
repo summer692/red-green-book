@@ -155,6 +155,7 @@
       memojiData: null, memojiScale: 1, memojiOffsetX: 0, memojiOffsetY: 0,
       copy: { series: '', titles: [], title: '', body: '', tags: '' },
       colors: { accent: '', title: '', heading: '', ink: '' },
+      mastheadGap: 18,
     };
   }
   function normalizeDeck(s) {
@@ -186,6 +187,7 @@
     else { d.copy.series = str(d.copy.series, ''); d.copy.titles = Array.isArray(d.copy.titles) ? d.copy.titles.map(String) : []; d.copy.title = str(d.copy.title, ''); d.copy.body = str(d.copy.body, ''); d.copy.tags = str(d.copy.tags, ''); }
     if (!d.colors || typeof d.colors !== 'object') d.colors = { accent: '', title: '', heading: '', ink: '' };
     else { ['accent', 'title', 'heading', 'ink'].forEach((k) => { if (typeof d.colors[k] !== 'string') d.colors[k] = ''; }); }
+    if (typeof d.mastheadGap !== 'number') d.mastheadGap = 18;
     d.pages = d.pages.map((pg) => migratePage(pg, d));
     return d;
   }
@@ -272,7 +274,7 @@
     const footer = (!isCover && !page.noFooter && D().footerNote) ? `<div class="card-footer">${esc(D().footerNote)}</div>` : '';
     return `<div class="frame">${masthead()}<div class="content-box">${templateHTML(page)}</div>${footer}</div>`;
   }
-  function buildCard(page) { const c = mk('div', 'page-card'); c.style.setProperty('--cover-font', coverFontStack()); c.style.setProperty('--frame-pad', (D().framePad || 22) + 'px'); const cl = D().colors || {}; for (const k in COLOR_VARS) if (cl[k]) c.style.setProperty(COLOR_VARS[k], cl[k]); c.innerHTML = buildCardHTML(page); return c; }
+  function buildCard(page) { const c = mk('div', 'page-card'); c.style.setProperty('--cover-font', coverFontStack()); c.style.setProperty('--frame-pad', (D().framePad || 22) + 'px'); c.style.setProperty('--mh-gap', (D().mastheadGap == null ? 18 : D().mastheadGap) + 'px'); const cl = D().colors || {}; for (const k in COLOR_VARS) if (cl[k]) c.style.setProperty(COLOR_VARS[k], cl[k]); c.innerHTML = buildCardHTML(page); return c; }
 
   // ---------------- 模板 HTML（<img/> 自闭合，导出走 XML 解析） ----------------
   function templateHTML(p) {
@@ -740,7 +742,7 @@
   }
   async function pageToPng(page) {
     const css = exportFontFace() + '\n' + (await inlineWebFonts(page)) + '\n' + (await getCSS());
-    const inner = `<div class="page-card" data-platform="${state.platform}" style="width:${CARD_W}px;height:${CARD_H}px;transform:none;--cover-font:${coverFontStack()};--frame-pad:${D().framePad || 22}px;${deckColorStyle()}">${buildCardHTML(page)}</div>`;
+    const inner = `<div class="page-card" data-platform="${state.platform}" style="width:${CARD_W}px;height:${CARD_H}px;transform:none;--cover-font:${coverFontStack()};--frame-pad:${D().framePad || 22}px;--mh-gap:${D().mastheadGap == null ? 18 : D().mastheadGap}px;${deckColorStyle()}">${buildCardHTML(page)}</div>`;
     const svg =
       `<svg xmlns="http://www.w3.org/2000/svg" width="${CARD_W}" height="${CARD_H}">` +
       `<foreignObject x="0" y="0" width="${CARD_W}" height="${CARD_H}">` +
@@ -999,6 +1001,7 @@
     $('#col-title').value = cl.title || td.title;
     $('#col-heading').value = cl.heading || td.heading;
     $('#col-ink').value = cl.ink || td.ink;
+    $('#set-mhgap').value = d.mastheadGap == null ? 18 : d.mastheadGap;
     const other = state.platform === 'xhs' ? '小绿书' : '小红书';
     const cp = $('#btn-copy-other'); if (cp) cp.textContent = '复制内容到' + other;
     $('#xls-only').style.display = state.platform === 'xls' ? '' : 'none';
@@ -1130,6 +1133,7 @@
     const colMap = { 'col-accent': 'accent', 'col-title': 'title', 'col-heading': 'heading', 'col-ink': 'ink' };
     Object.keys(colMap).forEach((id) => { $('#' + id).addEventListener('input', () => { D().colors[colMap[id]] = $('#' + id).value; touch(); }); });
     $('#col-reset').addEventListener('click', () => { D().colors = { accent: '', title: '', heading: '', ink: '' }; refreshSettingsUI(); touch(); flash('已恢复默认配色'); });
+    $('#set-mhgap').addEventListener('input', () => { D().mastheadGap = num($('#set-mhgap').value, 18); touch(); });
     const slInit = () => { $('#set-slogan-size').value = D().sloganSize; $('#set-slogan-x').value = D().sloganOffsetX; $('#set-slogan-y').value = D().sloganOffsetY; };
     slInit();
     const slSync = (id, key) => $(id).addEventListener('input', () => { D()[key] = num($(id).value, key === 'sloganSize' ? 24 : 0); touch(); });
