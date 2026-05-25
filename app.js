@@ -145,7 +145,7 @@
   function newDeck() {
     return {
       pages: [defaultPage('cover')],
-      brandLabel: '签证信息', brandLabelSize: 24, brandLabelOffsetX: 0, brandLabelOffsetY: 0, footerNote: DEFAULT_FOOTER, coverFont: 'hei',
+      brandLabel: '签证信息', brandLabelSize: 24, brandLabelOffsetX: 0, brandLabelOffsetY: 0, framePad: 22, footerNote: DEFAULT_FOOTER, coverFont: 'hei',
       sloganSize: 24, sloganOffsetX: 0, sloganOffsetY: 0,
       logoData: null, logoNatW: 0, logoNatH: 0, logoRecolor: true,
       logoScale: 1, logoOffsetX: 0, logoOffsetY: 0, logoCrop: { x: 0, y: 0, w: 1, h: 1 },
@@ -159,6 +159,7 @@
     if (typeof d.brandLabelSize !== 'number') d.brandLabelSize = 24;
     if (typeof d.brandLabelOffsetX !== 'number') d.brandLabelOffsetX = 0;
     if (typeof d.brandLabelOffsetY !== 'number') d.brandLabelOffsetY = 0;
+    if (typeof d.framePad !== 'number') d.framePad = 22;
     if (typeof d.footerNote !== 'string') d.footerNote = DEFAULT_FOOTER;
     if (!FONT_STACKS[d.coverFont]) d.coverFont = 'hei';
     if (typeof d.sloganSize !== 'number') d.sloganSize = 24;
@@ -262,7 +263,7 @@
     const footer = (!isCover && !page.noFooter && D().footerNote) ? `<div class="card-footer">${esc(D().footerNote)}</div>` : '';
     return `<div class="frame">${masthead()}<div class="content-box">${templateHTML(page)}</div>${footer}</div>`;
   }
-  function buildCard(page) { const c = mk('div', 'page-card'); c.style.setProperty('--cover-font', coverFontStack()); c.innerHTML = buildCardHTML(page); return c; }
+  function buildCard(page) { const c = mk('div', 'page-card'); c.style.setProperty('--cover-font', coverFontStack()); c.style.setProperty('--frame-pad', (D().framePad || 22) + 'px'); c.innerHTML = buildCardHTML(page); return c; }
 
   // ---------------- 模板 HTML（<img/> 自闭合，导出走 XML 解析） ----------------
   function templateHTML(p) {
@@ -672,7 +673,7 @@
   }
   async function pageToPng(page) {
     const css = exportFontFace() + '\n' + (await inlineWebFonts(page)) + '\n' + (await getCSS());
-    const inner = `<div class="page-card" data-platform="${state.platform}" style="width:${CARD_W}px;height:${CARD_H}px;transform:none;--cover-font:${coverFontStack()};">${buildCardHTML(page)}</div>`;
+    const inner = `<div class="page-card" data-platform="${state.platform}" style="width:${CARD_W}px;height:${CARD_H}px;transform:none;--cover-font:${coverFontStack()};--frame-pad:${D().framePad || 22}px;">${buildCardHTML(page)}</div>`;
     const svg =
       `<svg xmlns="http://www.w3.org/2000/svg" width="${CARD_W}" height="${CARD_H}">` +
       `<foreignObject x="0" y="0" width="${CARD_W}" height="${CARD_H}">` +
@@ -763,8 +764,11 @@
     applyCvSelClasses(); updateCvToolbar();
   }
   function selectAllText() {
-    cv.selSet = cv.page.elements.filter((e) => e.kind === 'text');
-    cv.sel = cv.selSet[cv.selSet.length - 1] || null;
+    const texts = cv.page.elements.filter((e) => e.kind === 'text');
+    const set = cv.selSet || [];
+    const allSelected = texts.length > 0 && set.length === texts.length && texts.every((e) => set.includes(e));
+    if (allSelected) { cv.selSet = []; cv.sel = null; } // 再按一次取消全选
+    else { cv.selSet = texts.slice(); cv.sel = texts[texts.length - 1] || null; }
     applyCvSelClasses(); updateCvToolbar();
   }
   function boxRect() { return cv.box.getBoundingClientRect(); }
@@ -895,6 +899,7 @@
     $('#set-label-size').value = d.brandLabelSize;
     $('#set-label-x').value = d.brandLabelOffsetX;
     $('#set-label-y').value = d.brandLabelOffsetY;
+    $('#set-framepad').value = d.framePad;
     $('#set-footer').value = d.footerNote;
     $('#set-font').value = d.coverFont;
     $('#logo-recolor').checked = d.logoRecolor !== false;
@@ -1014,6 +1019,7 @@
     $('#set-label-x').addEventListener('input', () => { D().brandLabelOffsetX = num($('#set-label-x').value, 0); touch(); });
     $('#set-label-y').addEventListener('input', () => { D().brandLabelOffsetY = num($('#set-label-y').value, 0); touch(); });
     $('#set-label-reset').addEventListener('click', () => { D().brandLabelOffsetX = 0; D().brandLabelOffsetY = 0; $('#set-label-x').value = 0; $('#set-label-y').value = 0; touch(); flash('已复原栏目名位置'); });
+    $('#set-framepad').addEventListener('input', () => { D().framePad = num($('#set-framepad').value, 22); touch(); });
     const slInit = () => { $('#set-slogan-size').value = D().sloganSize; $('#set-slogan-x').value = D().sloganOffsetX; $('#set-slogan-y').value = D().sloganOffsetY; };
     slInit();
     const slSync = (id, key) => $(id).addEventListener('input', () => { D()[key] = num($(id).value, key === 'sloganSize' ? 24 : 0); touch(); });
