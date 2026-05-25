@@ -85,6 +85,7 @@
   let logoDataUri = null;     // assets/logo-mark.(svg|png) → 按主题色重新上色
   let logoAssetNat = { w: 0, h: 0 };
   let memojiDataUri = null;   // assets/memoji.(png|svg) → 小红书封面人物
+  let memojiNat = { w: 1, h: 1 };  // 当前人物图原始宽高比，用于封面底部居中定位
   let displayFontB64 = null;  // assets/fonts/display.(woff2|ttf) → 封面方块字（导出时内联）
   let displayFontMime = 'font/woff2';
   let cssCache = null;
@@ -112,6 +113,20 @@
     }
   }
   // 把模板内容铺成画布元素（var() 颜色随主题自适应；不依赖 D() 以便迁移时调用）
+  async function refreshMemojiNat() {
+    const src = (D() && D().memojiData) || memojiDataUri;
+    if (!src) { memojiNat = { w: 1, h: 1 }; return; }
+    const n = await imgNat(src);
+    if (n.w && n.h) memojiNat = n;
+  }
+  // 封面人物：底部贴近边框、水平居中。按图片真实宽高比算高度，y 让其底边落在 ~0.97。
+  function coverMemojiEl(src) {
+    const CW = 470, CH = 600, w = 0.30;
+    const ar = (memojiNat && memojiNat.w) ? memojiNat.h / memojiNat.w : 1;
+    const hFrac = (w * CW / CH) * ar;
+    const y = Math.max(0.04, 0.97 - hFrac);
+    return { id: uid(), kind: 'image', x: (1 - w) / 2, y, w: w, src: src };
+  }
   function elementsFromContent(type, c, opts) {
     opts = opts || {}; const coverFont = opts.coverFont || 'hei', memoji = opts.memojiData || null;
     const els = []; const X = 0.06, W = 0.88, CW = 470, CH = 600; let y = 0.06;
@@ -125,7 +140,7 @@
     switch (type) {
       case 'cover':
         push(c.title || '', 80, TITLE, 900, 'center');
-        if (c.showMemoji !== false && memoji) els.push({ id: uid(), kind: 'image', x: 0.35, y: 0.72, w: 0.30, src: memoji });
+        if (c.showMemoji !== false && memoji) els.push(coverMemojiEl(memoji));
         break;
       case 'text': push(c.title || '', 46, HEAD, 900); push(c.body || '', 24, INK, 400); break;
       case 'policy': push(c.title || '', 42, HEAD, 900); (c.points || []).forEach((pt) => push('· ' + pt, 24, INK, 500)); break;
@@ -502,9 +517,9 @@
           const has = D().memojiData || memojiDataUri;
           const up = mk('label', 'btn btn-sm'); up.textContent = has ? '更换人物图片' : '上传人物图片';
           const fi = mk('input', '', { type: 'file', accept: 'image/*' }); fi.style.display = 'none';
-          fi.addEventListener('change', async () => { const f = fi.files && fi.files[0]; fi.value = ''; if (!f) return; if (!/^image\//.test(f.type)) { alert('请选择图片文件'); return; } D().memojiData = await readDataUrl(f); if (!save()) flash('图太大，本地存不下；本次有效，刷新会丢'); restructure(); flash('人物已更新'); });
+          fi.addEventListener('change', async () => { const f = fi.files && fi.files[0]; fi.value = ''; if (!f) return; if (!/^image\//.test(f.type)) { alert('请选择图片文件'); return; } D().memojiData = await readDataUrl(f); await refreshMemojiNat(); if (!save()) flash('图太大，本地存不下；本次有效，刷新会丢'); restructure(); flash('人物已更新'); });
           up.appendChild(fi);
-          const clr = mk('button', 'btn btn-sm btn-ghost'); clr.textContent = '清除人物'; clr.addEventListener('click', () => { D().memojiData = null; restructure(); flash('已清除人物'); });
+          const clr = mk('button', 'btn btn-sm btn-ghost'); clr.textContent = '清除人物'; clr.addEventListener('click', async () => { D().memojiData = null; await refreshMemojiNat(); restructure(); flash('已清除人物'); });
           const row = mk('div', 'btn-row'); row.append(up, clr); b.appendChild(row);
           if (has) {
             b.appendChild(label('人物大小 / 位置（拖滑块移动；或点下方“转为自由画布”直接拖）'));
@@ -585,7 +600,7 @@
     switch (page.type) {
       case 'cover':
         push(page.title, 80, title, 900, 'left');
-        if (page.showMemoji !== false && (D().memojiData || memojiDataUri)) els.push({ id: uid(), kind: 'image', x: 0.35, y: 0.72, w: 0.30, src: D().memojiData || memojiDataUri });
+        if (page.showMemoji !== false && (D().memojiData || memojiDataUri)) els.push(coverMemojiEl(D().memojiData || memojiDataUri));
         break;
       case 'text': push(page.title, 46, heading, 900); push(page.body, 24, ink, 400); break;
       case 'policy': push(page.title, 42, heading, 900); (page.points || []).forEach((pt) => push('· ' + pt, 24, ink, 500)); break;
@@ -1028,6 +1043,7 @@
     document.documentElement.dataset.platform = p;
     document.querySelectorAll('.plat-btn').forEach((b) => b.classList.toggle('is-active', b.dataset.platform === p));
     refreshSettingsUI();
+    refreshMemojiNat();
     save(); renderEditors(); renderPreview();
   }
   function refreshSettingsUI() {
@@ -1102,6 +1118,7 @@
     logoDataUri = await loadImageAsset(['assets/logo-mark.svg', 'assets/logo-mark.png']);
     if (logoDataUri) logoAssetNat = await imgNat(logoDataUri);
     memojiDataUri = await loadImageAsset(['assets/memoji.png', 'assets/memoji.svg']);
+    await refreshMemojiNat();
     await loadFontAsset();
     renderPreview();
   }
