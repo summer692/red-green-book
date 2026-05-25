@@ -125,7 +125,7 @@
     switch (type) {
       case 'cover':
         push(c.title || '', 80, TITLE, 900, 'center');
-        if (c.showMemoji !== false && memoji) els.push({ id: uid(), kind: 'image', x: 0.34, y: Math.min(0.6, y + 0.05), w: 0.32, src: memoji });
+        if (c.showMemoji !== false && memoji) els.push({ id: uid(), kind: 'image', x: 0.35, y: 0.72, w: 0.30, src: memoji });
         break;
       case 'text': push(c.title || '', 46, HEAD, 900); push(c.body || '', 24, INK, 400); break;
       case 'policy': push(c.title || '', 42, HEAD, 900); (c.points || []).forEach((pt) => push('· ' + pt, 24, INK, 500)); break;
@@ -585,7 +585,7 @@
     switch (page.type) {
       case 'cover':
         push(page.title, 80, title, 900, 'left');
-        if (page.showMemoji !== false && (D().memojiData || memojiDataUri)) els.push({ id: uid(), kind: 'image', x: 0.34, y: Math.min(0.6, y + 0.05), w: 0.32, src: D().memojiData || memojiDataUri });
+        if (page.showMemoji !== false && (D().memojiData || memojiDataUri)) els.push({ id: uid(), kind: 'image', x: 0.35, y: 0.72, w: 0.30, src: D().memojiData || memojiDataUri });
         break;
       case 'text': push(page.title, 46, heading, 900); push(page.body, 24, ink, 400); break;
       case 'policy': push(page.title, 42, heading, 900); (page.points || []).forEach((pt) => push('· ' + pt, 24, ink, 500)); break;
