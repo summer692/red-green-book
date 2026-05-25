@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  const LS_KEY = 'redgreen:v5';
+  const LS_KEY = 'redgreen:v6';
   const CARD_W = 540, CARD_H = 720, EXPORT_SCALE = 2;
   const DISP_W = 250;
   const TYPE_LABEL = { cover: '封面', bilingual: '双语分析', table: '排名表格', list: '列表', policy: '政策', text: '文本', canvas: '自由画布' };
@@ -75,6 +75,13 @@
     ['#set-font', '#cv-font', '#set-label-font'].forEach((sel) => { const el = $(sel); if (el) el.innerHTML = html; });
   }
   function coverFontStack() { return FONT_STACKS[D().coverFont] || FONT_STACKS.hei; }
+  // 封面字体改动后，同步更新已有封面页的文字元素（封面字体是烙在元素上的）
+  function applyCoverFontToPages() {
+    const f = D().coverFont || 'hei';
+    (D().pages || []).forEach((pg) => {
+      if (pg.type === 'canvas' && pg.preset === 'cover') (pg.elements || []).forEach((el) => { if (el && el.kind === 'text') el.font = f; });
+    });
+  }
   const THEME_DEFAULTS = { xhs: { accent: '#191970', title: '#191970', heading: '#191970', ink: '#191970', thead: '#191970', theadInk: '#ffffff' }, xls: { accent: '#1e66cc', title: '#1e66cc', heading: '#e5352a', ink: '#1c1c1e', thead: '#4a2d6e', theadInk: '#ffffff' } };
   const COLOR_VARS = { accent: '--accent', title: '--title-color', heading: '--heading', ink: '--ink', thead: '--table-head-bg', theadInk: '--table-head-ink' };
   const COLOR_KEYS = Object.keys(COLOR_VARS);
@@ -198,7 +205,7 @@
   function newDeck() {
     return {
       pages: [defaultPage('cover')],
-      brandLabel: '签证信息', brandLabelSize: 24, brandLabelOffsetX: 0, brandLabelOffsetY: 0, brandLabelFont: 'hei', framePad: 0, footerNote: DEFAULT_FOOTER, coverFont: 'hei',
+      brandLabel: '签证信息', brandLabelSize: 24, brandLabelOffsetX: 0, brandLabelOffsetY: 0, brandLabelFont: 'hei', framePad: 0, footerNote: DEFAULT_FOOTER, coverFont: 'notosans',
       sloganSize: 24, sloganOffsetX: 0, sloganOffsetY: 0,
       logoData: null, logoNatW: 0, logoNatH: 0, logoRecolor: true,
       logoScale: 1, logoOffsetX: 0, logoOffsetY: 0, logoCrop: { x: 0, y: 0, w: 1, h: 1 },
@@ -299,9 +306,23 @@
     (s.decks ? [s.decks.xhs, s.decks.xls] : [s]).forEach(fixDeck);
     return s;
   }
+  // 封面默认字体改为思源黑体 Heavy：同步更新已有封面页文字元素
+  function migrateCoverFontNotosans(s) {
+    const fixDeck = (d) => {
+      if (!d) return;
+      d.coverFont = 'notosans';
+      (d.pages || []).forEach((pg) => {
+        if (!pg || pg.type !== 'canvas' || pg.preset !== 'cover') return;
+        (pg.elements || []).forEach((el) => { if (el && el.kind === 'text') el.font = 'notosans'; });
+      });
+    };
+    (s.decks ? [s.decks.xhs, s.decks.xls] : [s]).forEach(fixDeck);
+    return s;
+  }
   function loadState() {
     try {
-      let raw = localStorage.getItem(LS_KEY), from = 5;
+      let raw = localStorage.getItem(LS_KEY), from = 6;
+      if (raw == null) { raw = localStorage.getItem('redgreen:v5'); if (raw != null) from = 5; }
       if (raw == null) { raw = localStorage.getItem('redgreen:v4'); if (raw != null) from = 4; }
       if (raw == null) { raw = localStorage.getItem('redgreen:v3'); if (raw != null) from = 3; }
       if (raw == null) { raw = localStorage.getItem('redgreen:v2'); if (raw != null) from = 2; }
@@ -310,6 +331,7 @@
       if (from <= 2) s = migrateFramePad(s);
       if (from <= 3) s = migrateMemojiAnchor(s);
       if (from <= 4) s = migrateStripPolicyDots(s);
+      if (from <= 5) s = migrateCoverFontNotosans(s);
       const platform = (s.platform === 'xls') ? 'xls' : 'xhs';
       const uiColor = typeof s.uiColor === 'string' ? s.uiColor : 'alipay';
       if (s.decks && s.decks.xhs && s.decks.xls) return { platform, uiColor, decks: { xhs: normalizeDeck(s.decks.xhs, 'xhs'), xls: normalizeDeck(s.decks.xls, 'xls') } };
@@ -1430,7 +1452,7 @@
     $('#set-slogan-reset').addEventListener('click', () => { D().sloganSize = 24; D().sloganOffsetX = 0; D().sloganOffsetY = 0; slInit(); touch(); flash('已复原标语'); });
     const ft = $('#set-footer'); ft.value = D().footerNote; ft.addEventListener('input', () => { D().footerNote = ft.value; touch(); });
     const ftP = $('#set-footer-preset'); ftP.addEventListener('change', () => { const v = ftP.value; ftP.value = ''; if (v === '') return; const t = FOOTER_PRESETS[v] || ''; D().footerNote = t; ft.value = t; touch(); });
-    const fontSel = $('#set-font'); fontSel.value = D().coverFont; fontSel.addEventListener('change', () => { D().coverFont = fontSel.value; ensureWebFont(fontSel.value); touch(); });
+    const fontSel = $('#set-font'); fontSel.value = D().coverFont; fontSel.addEventListener('change', () => { D().coverFont = fontSel.value; ensureWebFont(fontSel.value); applyCoverFontToPages(); touch(); });
 
     const recolor = $('#logo-recolor'); recolor.checked = D().logoRecolor !== false; recolor.addEventListener('change', () => { D().logoRecolor = recolor.checked; touch(); });
     bindUpload('#up-logo', async (data) => { D().logoData = data; const n = await imgNat(data); D().logoNatW = n.w; D().logoNatH = n.h; resetLogoAdjust(); if (!save()) flash('图太大，本地存不下；本次有效，刷新会丢'); renderPreview(); flash('logo 已更新，可点“裁剪/缩放/移动”调整'); });
