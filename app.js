@@ -370,7 +370,9 @@
   }
 
   // ---------------- 编辑器 ----------------
-  function label(t) { const l = mk('span', 'field-label'); l.textContent = t; return l; }
+  function withNotes(t) { return String(t).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])).replace(/（[^）]*）/g, '<span class="note">$&</span>'); }
+  function label(t) { const l = mk('span', 'field-label'); l.innerHTML = withNotes(t); return l; }
+  function noteify() { document.querySelectorAll('.field-label').forEach((el) => { if (el.dataset.noted || !/（[^）]*）/.test(el.textContent)) return; el.innerHTML = withNotes(el.textContent); el.dataset.noted = '1'; }); }
   function fieldText(labelText, value, on, placeholder) {
     const wrap = mk('div'); wrap.appendChild(label(labelText));
     const inp = mk('input', 'inp', { type: 'text' }); inp.value = value || ''; if (placeholder) inp.placeholder = placeholder;
@@ -1167,6 +1169,7 @@
     $('#btn-copy-other').addEventListener('click', copyToOther);
     setUiColor(state.uiColor);
     refreshSettingsUI();
+    noteify();
     renderEditors(); renderPreview(); loadAssets();
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
