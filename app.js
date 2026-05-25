@@ -101,6 +101,38 @@
   function str(v, d) { return v == null ? d : String(v); }
   function toStrArr(v, d) { return Array.isArray(v) ? v.map((x) => String(x)) : d; }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+  // 富文本：只允许极少量内联标签（局部加粗/放大/颜色），其余一律剥掉，换行规整为 \n（配合 white-space:pre-wrap）
+  const RICH_TAGS = { B: 1, STRONG: 1, I: 1, EM: 1, U: 1, SPAN: 1 };
+  const RICH_STYLE = ['font-size', 'font-weight', 'font-style', 'text-decoration', 'text-decoration-line', 'color'];
+  const INERT_DOC = document.implementation.createHTMLDocument('rich'); // 惰性文档：解析时不加载资源、不触发 onerror/script
+  function sanitizeRich(html) {
+    const tmp = INERT_DOC.createElement('div');
+    tmp.innerHTML = String(html == null ? '' : html);
+    const walk = (node) => {
+      [...node.childNodes].forEach((c) => {
+        if (c.nodeType === 3) return;          // 文本节点保留
+        if (c.nodeType !== 1) { c.remove(); return; }
+        if (/^(SCRIPT|STYLE|IFRAME|OBJECT|EMBED|LINK|META)$/.test(c.tagName)) { c.remove(); return; } // 整段删除，连文本一起
+        walk(c);                                // 先清理子树
+        if (!RICH_TAGS[c.tagName]) { const par = c.parentNode; while (c.firstChild) par.insertBefore(c.firstChild, c); par.removeChild(c); return; }
+        const style = c.getAttribute('style');
+        [...c.attributes].forEach((a) => c.removeAttribute(a.name));
+        if (style) { const kept = style.split(';').map((s) => s.trim()).filter(Boolean).filter((d) => RICH_STYLE.includes((d.split(':')[0] || '').trim().toLowerCase())); if (kept.length) c.setAttribute('style', kept.join('; ')); }
+      });
+    };
+    walk(tmp);
+    return tmp.innerHTML;
+  }
+  function hasInlineFmt(html) { return /<(b|strong|i|em|u|span)\b/i.test(html); }
+  // 从可编辑节点取富文本：换行（div/p/br）规整成 \n，再做白名单清洗
+  function captureRich(span) {
+    let h = span.innerHTML
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/(div|p)>/gi, '')
+      .replace(/<(div|p)[^>]*>/gi, '\n');
+    return sanitizeRich(h).replace(/^\n+/, '');
+  }
+  function richHTML(e) { return e && e.html ? sanitizeRich(e.html) : esc(e ? e.text : ''); }
   function uid() { return 'p' + Math.random().toString(36).slice(2, 9); }
 
   // ---------------- 状态 ----------------
@@ -409,7 +441,7 @@
     const font = FONT_STACKS[e.font] || 'inherit';
     const color = e.color ? e.color : 'var(--ink)';
     const lh = e.lh || 1.3, ls = e.ls || 0;
-    return `<div class="cv-el cv-text" style="${pos}font-size:${e.size}px;color:${color};font-weight:${e.weight || 700};text-align:${e.align || 'left'};font-family:${font};line-height:${lh};letter-spacing:${ls}px;">${esc(e.text)}</div>`;
+    return `<div class="cv-el cv-text" style="${pos}font-size:${e.size}px;color:${color};font-weight:${e.weight || 700};text-align:${e.align || 'left'};font-family:${font};line-height:${lh};letter-spacing:${ls}px;">${richHTML(e)}</div>`;
   }
 
   // ---------------- 预览 ----------------
@@ -975,7 +1007,7 @@
       node.style.fontWeight = e.weight || 700; node.style.textAlign = e.align || 'left';
       node.style.fontFamily = FONT_STACKS[e.font] || 'inherit';
       node.style.lineHeight = e.lh || 1.3; node.style.letterSpacing = (e.ls || 0) + 'px';
-      const span = mk('span', 'cv-textspan'); span.textContent = e.text; node.appendChild(span);
+      const span = mk('span', 'cv-textspan'); if (e.html) span.innerHTML = sanitizeRich(e.html); else span.textContent = e.text; node.appendChild(span);
       node.addEventListener('dblclick', () => startEditText(node, e));
     }
     const handle = mk('div', 'cv-handle'); node.appendChild(handle);
@@ -1057,8 +1089,38 @@
   function startEditText(node, e) {
     const span = node.querySelector('.cv-textspan');
     node.classList.add('editing'); span.contentEditable = 'true'; span.focus();
-    const fin = () => { span.contentEditable = 'false'; node.classList.remove('editing'); e.text = span.innerText; span.removeEventListener('blur', fin); save(); };
+    cv.editSpan = span; cv.editEl = e;
+    const fin = () => {
+      span.contentEditable = 'false'; node.classList.remove('editing');
+      e.text = span.innerText;
+      const html = captureRich(span);
+      if (hasInlineFmt(html)) e.html = html; else delete e.html;
+      cv.editSpan = null; cv.editEl = null;
+      span.removeEventListener('blur', fin); save();
+    };
     span.addEventListener('blur', fin);
+  }
+  // 正在文字编辑态：返回当前可编辑 span，否则 null
+  function editingSpan() { return cv && cv.editSpan && cv.editSpan.isContentEditable ? cv.editSpan : null; }
+  function syncEditing() {
+    if (!cv || !cv.editSpan || !cv.editEl) return;
+    cv.editEl.text = cv.editSpan.innerText;
+    const html = captureRich(cv.editSpan);
+    if (hasInlineFmt(html)) cv.editEl.html = html; else delete cv.editEl.html;
+    save();
+  }
+  // 给当前选中的文字片段套一个字号（局部放大/缩小）
+  function bumpSelectionSize(delta) {
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return;
+    const range = sel.getRangeAt(0);
+    if (range.collapsed) return;
+    let n = range.startContainer; if (n.nodeType === 3) n = n.parentNode;
+    const cur = parseFloat(getComputedStyle(n).fontSize) || (cv.editEl ? cv.editEl.size : 24);
+    const next = clamp(Math.round(cur + delta), 8, 240);
+    const span = document.createElement('span'); span.style.fontSize = next + 'px';
+    try { range.surroundContents(span); } catch { const f = range.extractContents(); span.appendChild(f); range.insertNode(span); }
+    const r2 = document.createRange(); r2.selectNodeContents(span); sel.removeAllRanges(); sel.addRange(r2);
   }
   function updateCvToolbar() {
     const tools = document.querySelector('.cv-sel-tools');
@@ -1082,7 +1144,20 @@
     $('#cv-all').addEventListener('click', selectAllText);
     $('#cv-size').addEventListener('input', () => { const v = num($('#cv-size').value, 36); applyToSelText((e) => { e.size = v; }); });
     $('#cv-color').addEventListener('input', () => { const v = $('#cv-color').value; applyToSelText((e) => { e.color = v; }); });
-    $('#cv-bold').addEventListener('click', () => { const w = (cv.sel && cv.sel.weight >= 700) ? 400 : 800; applyToSelText((e) => { e.weight = w; }); });
+    // 加粗：编辑文字时只加粗选中的片段（用 mousedown+preventDefault 保住选区不失焦）；未编辑时切换整个文本框
+    $('#cv-bold').addEventListener('mousedown', (ev) => {
+      if (editingSpan()) { ev.preventDefault(); document.execCommand('bold'); syncEditing(); return; }
+      const w = (cv.sel && cv.sel.weight >= 700) ? 400 : 800; applyToSelText((e) => { e.weight = w; });
+    });
+    // A+/A−：编辑文字时放大/缩小选中的片段；未编辑时调整整个文本框字号
+    $('#cv-bigger').addEventListener('mousedown', (ev) => {
+      if (editingSpan()) { ev.preventDefault(); bumpSelectionSize(6); syncEditing(); return; }
+      applyToSelText((e) => { e.size = clamp((e.size || 24) + 4, 8, 240); }); if (cv.sel) $('#cv-size').value = cv.sel.size;
+    });
+    $('#cv-smaller').addEventListener('mousedown', (ev) => {
+      if (editingSpan()) { ev.preventDefault(); bumpSelectionSize(-6); syncEditing(); return; }
+      applyToSelText((e) => { e.size = clamp((e.size || 24) - 4, 8, 240); }); if (cv.sel) $('#cv-size').value = cv.sel.size;
+    });
     $('#cv-align').addEventListener('click', () => { const al = ALIGNS[(ALIGNS.indexOf(cv.sel ? cv.sel.align : 'left') + 1) % 3]; applyToSelText((e) => { e.align = al; }); });
     $('#cv-font').addEventListener('change', () => { const v = $('#cv-font').value; ensureWebFont(v); applyToSelText((e) => { e.font = v; }); });
     $('#cv-lh').addEventListener('input', () => { const v = num($('#cv-lh').value, 1.3); applyToSelText((e) => { e.lh = v; }); });
