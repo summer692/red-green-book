@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  const LS_KEY = 'redgreen:v7';
+  const LS_KEY = 'redgreen:v8';
   const CARD_W = 540, CARD_H = 720, EXPORT_SCALE = 2;
   const DISP_W = 250;
   const TYPE_LABEL = { cover: '封面', bilingual: '双语分析', table: '排名表格', list: '列表', policy: '政策', text: '文本', canvas: '自由画布' };
@@ -147,6 +147,30 @@
     return sanitizeRich(h).replace(/^\n+/, '');
   }
   function richHTML(e) { return e && e.html ? sanitizeRich(e.html) : esc(e ? e.text : ''); }
+  // 半角标点 → 全角中文标点：仅当该标点紧邻中文字符时才转，保护小数(3.5)、序号(1.)、时间(12:30)、英文与网址/base64
+  const CN_PUNCT = { ',': '，', '.': '。', '!': '！', '?': '？', ':': '：', ';': '；', '(': '（', ')': '）' };
+  function isCNChar(ch) { return !!ch && /[㐀-鿿豈-﫿　-〿＀-￯]/.test(ch); }
+  function toCNPunct(s) {
+    if (typeof s !== 'string' || !s) return s;
+    if (s.startsWith('data:') || !/[,.!?:;()]/.test(s)) return s;
+    const a = Array.from(s);
+    for (let i = 0; i < a.length; i++) {
+      const c = a[i]; if (!CN_PUNCT[c]) continue;
+      const prevRaw = a[i - 1], nextRaw = a[i + 1];
+      if ((c === '.' || c === ':') && /\d/.test(prevRaw || '')) continue;   // 小数/序号/时间：1. 3.5 12:30
+      let p = i - 1; while (p >= 0 && /\s/.test(a[p])) p--;
+      let n = i + 1; while (n < a.length && /\s/.test(a[n])) n++;
+      if (isCNChar(a[p]) || isCNChar(a[n])) a[i] = CN_PUNCT[c];
+    }
+    return a.join('');
+  }
+  function cnPunctDeep(v, key) {
+    if (key === 'src') return v;
+    if (typeof v === 'string') return toCNPunct(v);
+    if (Array.isArray(v)) return v.map((x) => cnPunctDeep(x));
+    if (v && typeof v === 'object') { const o = {}; for (const k in v) o[k] = cnPunctDeep(v[k], k); return o; }
+    return v;
+  }
   function uid() { return 'p' + Math.random().toString(36).slice(2, 9); }
 
   // ---------------- 状态 ----------------
@@ -326,9 +350,15 @@
     (s.decks ? [s.decks.xhs, s.decks.xls] : [s]).forEach(fixDeck);
     return s;
   }
+  // 已有内容里的半角标点 → 中文全角标点（与导入时同一套规则，仅转中文相邻处）
+  function migrateCNPunct(s) {
+    if (s && s.decks) { if (s.decks.xhs) s.decks.xhs = cnPunctDeep(s.decks.xhs); if (s.decks.xls) s.decks.xls = cnPunctDeep(s.decks.xls); return s; }
+    return s ? cnPunctDeep(s) : s;
+  }
   function loadState() {
     try {
-      let raw = localStorage.getItem(LS_KEY), from = 7;
+      let raw = localStorage.getItem(LS_KEY), from = 8;
+      if (raw == null) { raw = localStorage.getItem('redgreen:v7'); if (raw != null) from = 7; }
       if (raw == null) { raw = localStorage.getItem('redgreen:v6'); if (raw != null) from = 6; }
       if (raw == null) { raw = localStorage.getItem('redgreen:v5'); if (raw != null) from = 5; }
       if (raw == null) { raw = localStorage.getItem('redgreen:v4'); if (raw != null) from = 4; }
@@ -341,6 +371,7 @@
       if (from <= 4) s = migrateStripPolicyDots(s);
       if (from <= 5) s = setAllDecksCoverFont(s, 'notosans');
       if (from <= 6) s = setAllDecksCoverFont(s, 'deyi');
+      if (from <= 7) s = migrateCNPunct(s);
       const platform = (s.platform === 'xls') ? 'xls' : 'xhs';
       const uiColor = typeof s.uiColor === 'string' ? s.uiColor : 'alipay';
       if (s.decks && s.decks.xhs && s.decks.xls) return { platform, uiColor, decks: { xhs: normalizeDeck(s.decks.xhs, 'xhs'), xls: normalizeDeck(s.decks.xls, 'xls') } };
@@ -807,7 +838,7 @@
     const obj = JSON.parse(t);
     const pages = Array.isArray(obj) ? obj : obj.pages;
     if (!Array.isArray(pages)) throw new Error('没有找到 pages 数组');
-    return pages.map(normalizePage).filter(Boolean);
+    return pages.map((p) => cnPunctDeep(p)).map(normalizePage).filter(Boolean);
   }
   function normalizePage(p) {
     if (!p || !TYPE_LABEL[p.type]) return null;
@@ -1163,13 +1194,16 @@
   function startEditText(node, e) {
     const span = node.querySelector('.cv-textspan');
     node.classList.add('editing'); span.contentEditable = 'true'; span.focus();
-    cv.editSpan = span; cv.editEl = e;
-    const fin = () => {
+    cv.editSpan = span; cv.editEl = e; cv.rng = null;
+    const fin = (ev) => {
+      // 焦点转到「字号/取色」控件时不结束编辑：保留可编辑 span 与选区，以便只对选中文字改字号/颜色
+      const to = ev && ev.relatedTarget;
+      if (to && (to.id === 'cv-size' || to.id === 'cv-color')) return;
       span.contentEditable = 'false'; node.classList.remove('editing');
       e.text = span.innerText;
       const html = captureRich(span);
       if (hasInlineFmt(html)) e.html = html; else delete e.html;
-      cv.editSpan = null; cv.editEl = null;
+      cv.editSpan = null; cv.editEl = null; cv.rng = null;
       span.removeEventListener('blur', fin); save();
     };
     span.addEventListener('blur', fin);
@@ -1182,6 +1216,20 @@
     const html = captureRich(cv.editSpan);
     if (hasInlineFmt(html)) cv.editEl.html = html; else delete cv.editEl.html;
     save();
+  }
+  // 正在编辑文字且有「未折叠」选区时，返回该选区（来自 selectionchange 记录的 cv.rng），否则 null
+  function inlineSel() { return editingSpan() && cv.rng && !cv.rng.collapsed ? cv.rng : null; }
+  // 只给当前选区套一个内联样式（字号/颜色），不影响整个文本框
+  function applyInlineStyle(styleProp, value) {
+    const span = editingSpan(), rng = inlineSel();
+    if (!span || !rng) return false;
+    span.focus();
+    const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(rng);
+    const wrap = document.createElement('span'); wrap.style[styleProp] = value;
+    try { rng.surroundContents(wrap); } catch { const f = rng.extractContents(); wrap.appendChild(f); rng.insertNode(wrap); }
+    const r2 = document.createRange(); r2.selectNodeContents(wrap); sel.removeAllRanges(); sel.addRange(r2); cv.rng = r2.cloneRange();
+    syncEditing();
+    return true;
   }
   // 给当前选中的文字片段套一个字号（局部放大/缩小）
   function bumpSelectionSize(delta) {
@@ -1215,9 +1263,19 @@
       cv.page.elements.push(e); rebuildCanvasEls(); selectEl(e); save();
     });
     function applyToSelText(fn) { (cv.selSet || []).forEach((e) => { if (e.kind === 'text') fn(e); }); rebuildCanvasEls(); save(); }
+    // 记录编辑态下落在可编辑 span 内的选区；blur 到工具栏时选区移出 span，不会被覆盖，从而保住「最后一次高亮」
+    document.addEventListener('selectionchange', () => {
+      const span = editingSpan(); if (!span) return;
+      const sel = window.getSelection(); if (!sel || !sel.rangeCount) return;
+      const r = sel.getRangeAt(0);
+      if (span.contains(r.commonAncestorContainer)) cv.rng = r.cloneRange();
+    });
     $('#cv-all').addEventListener('click', selectAllText);
-    $('#cv-size').addEventListener('input', () => { const v = num($('#cv-size').value, 36); applyToSelText((e) => { e.size = v; }); });
-    $('#cv-color').addEventListener('input', () => { const v = $('#cv-color').value; applyToSelText((e) => { e.color = v; }); });
+    // 字号/颜色：编辑文字且有选区时只改选中片段；否则改整个文本框。原生输入框会抢焦点，故内联改动放在 change（提交）时执行，避免边输入边抢回焦点
+    $('#cv-size').addEventListener('input', () => { if (inlineSel()) return; const v = num($('#cv-size').value, 36); applyToSelText((e) => { e.size = v; }); });
+    $('#cv-size').addEventListener('change', () => { if (inlineSel()) applyInlineStyle('fontSize', clamp(num($('#cv-size').value, 36), 8, 240) + 'px'); });
+    $('#cv-color').addEventListener('input', () => { if (inlineSel()) return; const v = $('#cv-color').value; applyToSelText((e) => { e.color = v; }); });
+    $('#cv-color').addEventListener('change', () => { if (inlineSel()) applyInlineStyle('color', $('#cv-color').value); });
     // 加粗：编辑文字时只加粗选中的片段（用 mousedown+preventDefault 保住选区不失焦）；未编辑时切换整个文本框
     $('#cv-bold').addEventListener('mousedown', (ev) => {
       if (editingSpan()) { ev.preventDefault(); document.execCommand('bold'); syncEditing(); return; }
