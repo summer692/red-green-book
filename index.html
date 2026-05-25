@@ -155,7 +155,7 @@
             <button id="copy-gen" class="btn">用 Claude 生成文案 →</button>
             <button id="copy-gencopy" class="btn btn-ghost">复制提示词</button>
           </div>
-          <p class="hint">基于当前平台内容 + 该平台推荐算法要点生成；返回后可编辑。生成的标题/正文/标签会随「分享到 App」一起带给小红书 / 微信。</p>
+          <p class="hint">基于当前平台内容 + 该平台推荐算法要点生成；Claude 会先把正文写出来给你确认，确认后再连标题、标签一起给 JSON。返回后可编辑，会随「分享到 App」一起带给小红书 / 微信。</p>
           <label class="field-label" for="copy-json">粘贴 Claude 返回的 JSON</label>
           <textarea id="copy-json" class="ta" rows="3" placeholder='{ "titles":[...], "body":"...", "tags":[...] }'></textarea>
           <div class="btn-row"><button id="copy-fill" class="btn btn-primary">填入</button></div>
