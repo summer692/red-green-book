@@ -1076,17 +1076,26 @@
     if (!cv || !cv.page.elements.length) return;
     const texts = cv.page.elements.filter((e) => e.kind === 'text').sort((a, b) => a.y - b.y);
     if (!texts.length) return;
-    const sm = cv.page.sideMargin != null ? cv.page.sideMargin : 0.06;
-    texts.forEach((e) => { e.x = sm; }); // 仅左对齐 + 下方等间距堆叠；保留各自宽度，不强制等宽
-    let y = 0;
-    for (let iter = 0; iter < 6; iter++) {
-      rebuildCanvasEls();
-      const r = boxRect();
-      y = 0.035; const GAP = 0.02;
-      texts.forEach((e) => { const n = [...cv.box.children].find((c) => c._el === e); const h = n ? n.offsetHeight / r.height : 0.06; e.y = y; y += h + GAP; });
-      if (y <= 0.99) break;
-      const f = Math.max(0.85, 0.96 / y); // 超出则整体缩小字号再排
-      texts.forEach((e) => { e.size = Math.max(9, Math.round(e.size * f)); });
+    // 横向：取最宽的文本框为统一宽度，整体水平居中（左右留白相等），并让每行文字居中
+    const W = Math.min(1, Math.max(...texts.map((e) => e.w || 0.8)));
+    const X = (1 - W) / 2;
+    texts.forEach((e) => { e.x = X; e.w = W; e.align = 'center'; });
+    rebuildCanvasEls();
+    // 纵向：在整个文字区内等间距分布（上/各行之间/下的间隔一致），不缩小字号
+    const r = boxRect();
+    const hasBottomImg = cv.page.elements.some((e) => e.kind === 'image' && e.anchor === 'bottom');
+    const TOP = 0.04, BOT = hasBottomImg ? 0.72 : 0.96, avail = BOT - TOP;
+    const hs = texts.map((e) => { const n = [...cv.box.children].find((c) => c._el === e); return n ? n.offsetHeight / r.height : 0.06; });
+    const H = hs.reduce((a, b) => a + b, 0);
+    if (texts.length === 1) {
+      texts[0].y = clamp(TOP + (avail - hs[0]) / 2, 0.02, 0.98);
+    } else if (H < avail) {
+      const gap = (avail - H) / (texts.length + 1);
+      let y = TOP + gap;
+      texts.forEach((e, i) => { e.y = y; y += hs[i] + gap; });
+    } else { // 放不下也不缩字：从顶部按小间距堆叠
+      const gap = 0.015; let y = TOP;
+      texts.forEach((e, i) => { e.y = y; y += hs[i] + gap; });
     }
     rebuildCanvasEls(); save(); flash('已整理排版');
   }
