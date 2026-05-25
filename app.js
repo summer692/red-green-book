@@ -977,12 +977,13 @@
     return out;
   }
   const localFontB64 = {};
+  const localFaceLoaded = {};
   async function inlineLocalFonts(page) {
     const keys = new Set();
     const add = (k) => { if (LOCALFONTS[k]) keys.add(k); };
     (page.elements || []).forEach((e) => { if (e.kind === 'text') add(e.font); });
     if (state.platform === 'xls' && D().brandLabel) add(D().brandLabelFont);
-    let out = '';
+    let out = ''; const loads = [];
     for (const key of keys) {
       const lf = LOCALFONTS[key];
       if (localFontB64[key] == null) {
@@ -992,8 +993,17 @@
           localFontB64[key] = btoa(bin);
         } catch (e) { localFontB64[key] = ''; }
       }
-      if (localFontB64[key]) out += `@font-face{font-family:"${lf.fam}";src:url(data:font/woff2;base64,${localFontB64[key]}) format("woff2");font-weight:100 900;font-display:block;}\n`;
+      if (localFontB64[key]) {
+        const dataUrl = `data:font/woff2;base64,${localFontB64[key]}`;
+        out += `@font-face{font-family:"${lf.fam}";src:url(${dataUrl}) format("woff2");font-weight:100 900;font-display:block;}\n`;
+        // 把同一份 base64 字体注册进 document.fonts 并等待解码：大字库(狮尾黑体≈4.8MB)若在 SVG 光栅化瞬间还没就绪，
+        // font-display:block 会把文字画成空白——预先解码后，SVG 内相同 data URI 的 @font-face 即可命中已解码字体，正常上色。
+        if (!localFaceLoaded[key] && typeof FontFace !== 'undefined') {
+          try { const face = new FontFace(lf.fam, `url(${dataUrl})`, { weight: '100 900' }); document.fonts.add(face); loads.push(face.load().then(() => { localFaceLoaded[key] = 1; }).catch(() => {})); } catch (e) {}
+        }
+      }
     }
+    await Promise.all(loads);
     return out;
   }
   async function pageToPng(page) {
@@ -1004,8 +1014,10 @@
       `<foreignObject x="0" y="0" width="${CARD_W}" height="${CARD_H}">` +
       `<div xmlns="http://www.w3.org/1999/xhtml" class="export-root" data-platform="${state.platform}" style="width:${CARD_W}px;height:${CARD_H}px;">` +
       `<style><![CDATA[${css}]]></style>${inner}</div></foreignObject></svg>`;
+    try { await document.fonts.ready; } catch (e) {}
     const img = new Image();
     await new Promise((res, rej) => { img.onload = () => res(); img.onerror = () => rej(new Error('图片渲染失败')); img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg); });
+    try { await img.decode(); } catch (e) {}
     const canvas = mk('canvas'); canvas.width = CARD_W * EXPORT_SCALE; canvas.height = CARD_H * EXPORT_SCALE;
     const ctx = canvas.getContext('2d'); ctx.scale(EXPORT_SCALE, EXPORT_SCALE); ctx.drawImage(img, 0, 0);
     return canvas.toDataURL('image/png');
