@@ -1032,6 +1032,8 @@
     }
   }
   async function loadAssets() {
+    const appLogo = await loadImageAsset(['assets/app-logo.png', 'assets/app-logo.svg', 'assets/app-logo.webp', 'assets/app-logo.jpg']);
+    if (appLogo) { const el = $('#brand-logo'); if (el) el.innerHTML = '<img class="brand-img" src="' + appLogo + '" alt="红绿书出图器" />'; }
     for (const k of ['xhs', 'xls']) { const dk = state.decks[k]; if (dk.logoData && (!dk.logoNatW || !dk.logoNatH)) { const n = await imgNat(dk.logoData); dk.logoNatW = n.w; dk.logoNatH = n.h; save(); } }
     logoDataUri = await loadImageAsset(['assets/logo-mark.svg', 'assets/logo-mark.png']);
     if (logoDataUri) logoAssetNat = await imgNat(logoDataUri);
