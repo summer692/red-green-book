@@ -1122,23 +1122,30 @@
     const X = (1 - W) / 2;
     texts.forEach((e) => { e.x = X; e.w = W; e.align = 'center'; });
     rebuildCanvasEls();
-    // 纵向：在整个文字区内等间距分布（上/各行之间/下的间隔一致），不缩小字号
-    const r = boxRect();
-    const hasBottomImg = cv.page.elements.some((e) => e.kind === 'image' && e.anchor === 'bottom');
-    const TOP = 0.04, BOT = hasBottomImg ? 0.72 : 0.96, avail = BOT - TOP;
-    const hs = texts.map((e) => { const n = [...cv.box.children].find((c) => c._el === e); return n ? n.offsetHeight / r.height : 0.06; });
-    const H = hs.reduce((a, b) => a + b, 0);
-    if (texts.length === 1) {
-      texts[0].y = clamp(TOP + (avail - hs[0]) / 2, 0.02, 0.98);
-    } else if (H < avail) {
-      const gap = (avail - H) / (texts.length + 1);
-      let y = TOP + gap;
-      texts.forEach((e, i) => { e.y = y; y += hs[i] + gap; });
-    } else { // 放不下也不缩字：从顶部按小间距堆叠
-      const gap = 0.015; let y = TOP;
-      texts.forEach((e, i) => { e.y = y; y += hs[i] + gap; });
-    }
-    rebuildCanvasEls(); save(); flash('已整理排版');
+    // 纵向：行距用「舒适的固定间隔」，整体垂直居中；放不下时把间隔收紧再顶部对齐，不缩小字号、不铺满整页
+    const layout = () => {
+      if (!cv) return;
+      rebuildCanvasEls();
+      // 编辑器卡片用 transform:scale，必须用同一坐标系测量：节点与画布都取未缩放的 offsetHeight
+      const boxH = cv.box.offsetHeight || 1;
+      const hasBottomImg = cv.page.elements.some((e) => e.kind === 'image' && e.anchor === 'bottom');
+      const TOP = 0.04, BOT = hasBottomImg ? 0.72 : 0.96, avail = BOT - TOP;
+      const hs = texts.map((e) => { const n = [...cv.box.children].find((c) => c._el === e); return n ? n.offsetHeight / boxH : 0.06; });
+      const H = hs.reduce((a, b) => a + b, 0), n = texts.length;
+      if (n === 1) {
+        texts[0].y = clamp(TOP + (avail - hs[0]) / 2, 0.02, 0.98);
+      } else {
+        const NICE = 0.03, MIN = 0.012; // 默认舒适行距；内容多放不下时收紧到最小
+        let gap = NICE;
+        if (H + (n - 1) * gap > avail) gap = Math.max(MIN, (avail - H) / (n - 1));
+        const blockH = H + (n - 1) * gap;
+        let y = Math.max(TOP, TOP + (avail - blockH) / 2); // 居中；放不下则顶部对齐
+        texts.forEach((e, i) => { e.y = y; y += hs[i] + gap; });
+      }
+      rebuildCanvasEls(); save(); flash('已整理排版');
+    };
+    // 等字体真正加载完再测量高度，避免（刚换字体时）按旧字体的较矮高度算出过大的间隔
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(layout); else layout();
   }
   function reorderSel(dir) {
     if (!cv.sel) return;
