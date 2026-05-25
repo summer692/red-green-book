@@ -1175,6 +1175,7 @@
     $('#copy-title').addEventListener('input', () => { D().copy.title = $('#copy-title').value; save(); });
     $('#copy-body').addEventListener('input', () => { D().copy.body = $('#copy-body').value; save(); });
     $('#copy-tags').addEventListener('input', () => { D().copy.tags = $('#copy-tags').value; save(); });
+    $('#copy-all').addEventListener('click', () => { const c = D().copy; const t = [c.title, c.body, c.tags].filter(Boolean).join('\n\n'); if (!t) { alert('还没有文案，先生成或填写'); return; } copyText(t).then((ok) => { if (ok) flash('文案已复制（标题+正文+标签）'); else window.prompt('复制下面文案：', t); }); });
     $('#btn-ai-open').addEventListener('click', onOpenClaude);
     $('#btn-ai-copy').addEventListener('click', onCopyPrompt);
     $('#btn-ai-fill').addEventListener('click', onFill);
