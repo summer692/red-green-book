@@ -46,6 +46,14 @@
         <div class="panel-body">
           <p class="hint" style="margin-top:0">小红书 / 小绿书 各自独立编辑（内容、logo、字体、位置互不影响）。</p>
           <div class="btn-row" style="margin-top:0"><button id="btn-copy-other" class="btn btn-sm">复制内容到另一平台</button></div>
+          <label class="field-label">配色（版式不变，随时换色）</label>
+          <div class="lg-inline">
+            <span>边框</span><input id="col-accent" type="color" class="cv-color" />
+            <span>标题</span><input id="col-title" type="color" class="cv-color" />
+            <span>小标题</span><input id="col-heading" type="color" class="cv-color" />
+            <span>正文</span><input id="col-ink" type="color" class="cv-color" />
+            <button id="col-reset" class="btn btn-sm">恢复默认</button>
+          </div>
           <div id="xls-only">
             <label class="field-label" for="set-label">信息分类（签证信息 / 申请信息 / 院校信息）</label>
             <input id="set-label" class="inp" type="text" />
