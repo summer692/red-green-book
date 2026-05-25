@@ -78,6 +78,8 @@
   const THEME_DEFAULTS = { xhs: { accent: '#191970', title: '#191970', heading: '#191970', ink: '#191970' }, xls: { accent: '#1e66cc', title: '#1e66cc', heading: '#e5352a', ink: '#1c1c1e' } };
   const COLOR_VARS = { accent: '--accent', title: '--title-color', heading: '--heading', ink: '--ink' };
   function deckColorStyle() { const c = D().colors || {}; let s = ''; for (const k in COLOR_VARS) if (c[k]) s += COLOR_VARS[k] + ':' + c[k] + ';'; return s; }
+  function pgFramePad(p) { return p && p.framePad != null ? p.framePad : (D().framePad != null ? D().framePad : 22); }
+  function pgMhGap(p) { return p && p.mastheadGap != null ? p.mastheadGap : (D().mastheadGap != null ? D().mastheadGap : 18); }
 
   // 资产（用户放进 assets/ 后自动生效）
   let logoDataUri = null;     // assets/logo-mark.(svg|png) → 按主题色重新上色
@@ -269,12 +271,18 @@
     return `<div class="masthead mh-xls">${logoMarkup()}${D().brandLabel ? `<div class="brand-label" style="font-size:${D().brandLabelSize || 24}px;transform:translate(${D().brandLabelOffsetX || 0}px,${D().brandLabelOffsetY || 0}px)">${esc(D().brandLabel)}</div>` : ''}</div>`;
   }
 
-  function buildCardHTML(page) {
-    const isCover = page.type === 'cover';
-    const footer = (!isCover && !page.noFooter && D().footerNote) ? `<div class="card-footer">${esc(D().footerNote)}</div>` : '';
-    return `<div class="frame">${masthead()}<div class="content-box">${templateHTML(page)}</div>${footer}</div>`;
+  function footerHTML(page) {
+    const t = D().footerNote;
+    if (page.type === 'cover' || page.noFooter || !t) return '';
+    const W = state.platform === 'xls' ? (CARD_W - 24 - 2 * pgFramePad(page)) : (CARD_W - 60);
+    let wl = 0; for (const ch of String(t)) wl += (ch.charCodeAt(0) > 255 ? 1 : 0.55);
+    const size = Math.max(7, Math.min(13, (W * 0.98) / Math.max(1, wl)));
+    return `<div class="card-footer" style="font-size:${size.toFixed(1)}px">${esc(t)}</div>`;
   }
-  function buildCard(page) { const c = mk('div', 'page-card'); c.style.setProperty('--cover-font', coverFontStack()); c.style.setProperty('--frame-pad', (D().framePad || 22) + 'px'); c.style.setProperty('--mh-gap', (D().mastheadGap == null ? 18 : D().mastheadGap) + 'px'); const cl = D().colors || {}; for (const k in COLOR_VARS) if (cl[k]) c.style.setProperty(COLOR_VARS[k], cl[k]); c.innerHTML = buildCardHTML(page); return c; }
+  function buildCardHTML(page) {
+    return `<div class="frame">${masthead()}<div class="content-box">${templateHTML(page)}</div>${footerHTML(page)}</div>`;
+  }
+  function buildCard(page) { const c = mk('div', 'page-card'); c.style.setProperty('--cover-font', coverFontStack()); c.style.setProperty('--frame-pad', pgFramePad(page) + 'px'); c.style.setProperty('--mh-gap', pgMhGap(page) + 'px'); const cl = D().colors || {}; for (const k in COLOR_VARS) if (cl[k]) c.style.setProperty(COLOR_VARS[k], cl[k]); c.innerHTML = buildCardHTML(page); return c; }
 
   // ---------------- 模板 HTML（<img/> 自闭合，导出走 XML 解析） ----------------
   function templateHTML(p) {
@@ -389,6 +397,14 @@
     const inp = mk('input', 'lg-mini', { type: 'range', min: String(min), max: String(max), step: String(step) });
     inp.value = D()[key];
     inp.addEventListener('input', () => { D()[key] = num(inp.value, key === 'memojiScale' ? 1 : 0); touch(); });
+    row.appendChild(inp); return row;
+  }
+  function pageRange(labelText, page, key, def, min, max) {
+    const row = mk('div', 'lg-inline');
+    const l = mk('span'); l.textContent = labelText; row.appendChild(l);
+    const inp = mk('input', 'lg-mini', { type: 'range', min: String(min), max: String(max), step: '1' });
+    inp.value = (page[key] != null ? page[key] : (D()[key] != null ? D()[key] : def));
+    inp.addEventListener('input', () => { page[key] = num(inp.value, def); touch(); });
     row.appendChild(inp); return row;
   }
   function stringListEditor(arr, placeholder) {
@@ -524,6 +540,9 @@
       });
       b.appendChild(conv);
     }
+    b.appendChild(label('本页间距（只影响这一页）'));
+    b.appendChild(pageRange('报头间距', page, 'mastheadGap', 18, 0, 64));
+    if (state.platform === 'xls') b.appendChild(pageRange('内容边距', page, 'framePad', 22, 4, 40));
     return b;
   }
   function convertPageToCanvas(page) {
@@ -744,7 +763,7 @@
   }
   async function pageToPng(page) {
     const css = exportFontFace() + '\n' + (await inlineWebFonts(page)) + '\n' + (await getCSS());
-    const inner = `<div class="page-card" data-platform="${state.platform}" style="width:${CARD_W}px;height:${CARD_H}px;transform:none;--cover-font:${coverFontStack()};--frame-pad:${D().framePad || 22}px;--mh-gap:${D().mastheadGap == null ? 18 : D().mastheadGap}px;${deckColorStyle()}">${buildCardHTML(page)}</div>`;
+    const inner = `<div class="page-card" data-platform="${state.platform}" style="width:${CARD_W}px;height:${CARD_H}px;transform:none;--cover-font:${coverFontStack()};--frame-pad:${pgFramePad(page)}px;--mh-gap:${pgMhGap(page)}px;${deckColorStyle()}">${buildCardHTML(page)}</div>`;
     const svg =
       `<svg xmlns="http://www.w3.org/2000/svg" width="${CARD_W}" height="${CARD_H}">` +
       `<foreignObject x="0" y="0" width="${CARD_W}" height="${CARD_H}">` +
@@ -990,7 +1009,6 @@
     $('#set-label-size').value = d.brandLabelSize;
     $('#set-label-x').value = d.brandLabelOffsetX;
     $('#set-label-y').value = d.brandLabelOffsetY;
-    $('#set-framepad').value = d.framePad;
     $('#set-footer').value = d.footerNote;
     $('#set-font').value = d.coverFont;
     $('#logo-recolor').checked = d.logoRecolor !== false;
@@ -1003,7 +1021,6 @@
     $('#col-title').value = cl.title || td.title;
     $('#col-heading').value = cl.heading || td.heading;
     $('#col-ink').value = cl.ink || td.ink;
-    $('#set-mhgap').value = d.mastheadGap == null ? 18 : d.mastheadGap;
     const other = state.platform === 'xhs' ? '小绿书' : '小红书';
     const cp = $('#btn-copy-other'); if (cp) cp.textContent = '复制内容到' + other;
     $('#xls-only').style.display = state.platform === 'xls' ? '' : 'none';
@@ -1131,11 +1148,9 @@
     $('#set-label-x').addEventListener('input', () => { D().brandLabelOffsetX = num($('#set-label-x').value, 0); touch(); });
     $('#set-label-y').addEventListener('input', () => { D().brandLabelOffsetY = num($('#set-label-y').value, 0); touch(); });
     $('#set-label-reset').addEventListener('click', () => { D().brandLabelOffsetX = 0; D().brandLabelOffsetY = 0; $('#set-label-x').value = 0; $('#set-label-y').value = 0; touch(); flash('已复原栏目名位置'); });
-    $('#set-framepad').addEventListener('input', () => { D().framePad = num($('#set-framepad').value, 22); touch(); });
     const colMap = { 'col-accent': 'accent', 'col-title': 'title', 'col-heading': 'heading', 'col-ink': 'ink' };
     Object.keys(colMap).forEach((id) => { $('#' + id).addEventListener('input', () => { D().colors[colMap[id]] = $('#' + id).value; touch(); }); });
     $('#col-reset').addEventListener('click', () => { D().colors = { accent: '', title: '', heading: '', ink: '' }; refreshSettingsUI(); touch(); flash('已恢复默认配色'); });
-    $('#set-mhgap').addEventListener('input', () => { D().mastheadGap = num($('#set-mhgap').value, 18); touch(); });
     const slInit = () => { $('#set-slogan-size').value = D().sloganSize; $('#set-slogan-x').value = D().sloganOffsetX; $('#set-slogan-y').value = D().sloganOffsetY; };
     slInit();
     const slSync = (id, key) => $(id).addEventListener('input', () => { D()[key] = num($(id).value, key === 'sloganSize' ? 24 : 0); touch(); });

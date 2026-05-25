@@ -6,7 +6,12 @@ html, body {
   color: #1c1c1e; background: #f3f3f5;
   -webkit-font-smoothing: antialiased;
 }
-input[type="range"], input[type="checkbox"], input[type="color"], select { accent-color: var(--ui-accent); }
+input[type="checkbox"], input[type="color"], select { accent-color: var(--ui-accent); }
+input[type="range"] { -webkit-appearance: none; appearance: none; height: 18px; background: transparent; cursor: pointer; }
+input[type="range"]::-webkit-slider-runnable-track { height: 6px; border-radius: 999px; background: #fff; border: 1px solid rgba(0,0,0,.2); }
+input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 16px; height: 16px; margin-top: -6px; border-radius: 50%; background: var(--ui-accent); border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.18); }
+input[type="range"]::-moz-range-track { height: 6px; border-radius: 999px; background: #fff; border: 1px solid rgba(0,0,0,.2); }
+input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: var(--ui-accent); border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.18); }
 
 /* ---------------- 顶栏 ---------------- */
 .topbar {
@@ -171,7 +176,7 @@ summary::-webkit-details-marker { display: none; }
 [data-platform="xhs"] .content-box { border: 3px solid var(--accent); border-radius: 26px; padding: 30px 32px; }
 [data-platform="xls"] .content-box { border: 0; padding: 2px 2px; }
 
-.card-footer { flex: 0 0 auto; margin-top: 14px; font-size: 13px; color: var(--footer-color); text-align: center; line-height: 1.45; }
+.card-footer { flex: 0 0 auto; margin-top: 14px; font-size: 13px; color: var(--footer-color); text-align: center; white-space: nowrap; overflow: hidden; }
 
 /* 通用小标题 / 大标题 */
 .sec-heading { color: var(--heading); font-weight: 800; font-size: 30px; line-height: 1.25; margin: 0 0 14px; }
