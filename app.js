@@ -1,7 +1,8 @@
 (function () {
   'use strict';
 
-  const LS_KEY = 'redgreen:v2';
+  const LS_KEY = 'redgreen:v3';
+  const LS_KEY_OLD = 'redgreen:v2';
   const CARD_W = 540, CARD_H = 720, EXPORT_SCALE = 2;
   const DISP_W = 250;
   const TYPE_LABEL = { cover: '封面', bilingual: '双语分析', table: '排名表格', list: '列表', policy: '政策', text: '文本', canvas: '自由画布' };
@@ -80,7 +81,7 @@
   const COLOR_KEYS = Object.keys(COLOR_VARS);
   function emptyColors() { const o = {}; COLOR_KEYS.forEach((k) => { o[k] = ''; }); return o; }
   function deckColorStyle() { const c = D().colors || {}; let s = ''; for (const k in COLOR_VARS) if (c[k]) s += COLOR_VARS[k] + ':' + c[k] + ';'; return s; }
-  function pgFramePad(p) { return p && p.framePad != null ? p.framePad : (D().framePad != null ? D().framePad : 22); }
+  function pgFramePad(p) { return p && p.framePad != null ? p.framePad : (D().framePad != null ? D().framePad : 0); }
   function pgMhGap(p) { return p && p.mastheadGap != null ? p.mastheadGap : (D().mastheadGap != null ? D().mastheadGap : 18); }
 
   // 资产（用户放进 assets/ 后自动生效）
@@ -167,7 +168,7 @@
   function newDeck() {
     return {
       pages: [defaultPage('cover')],
-      brandLabel: '签证信息', brandLabelSize: 24, brandLabelOffsetX: 0, brandLabelOffsetY: 0, brandLabelFont: 'hei', framePad: 22, footerNote: DEFAULT_FOOTER, coverFont: 'hei',
+      brandLabel: '签证信息', brandLabelSize: 24, brandLabelOffsetX: 0, brandLabelOffsetY: 0, brandLabelFont: 'hei', framePad: 0, footerNote: DEFAULT_FOOTER, coverFont: 'hei',
       sloganSize: 24, sloganOffsetX: 0, sloganOffsetY: 0,
       logoData: null, logoNatW: 0, logoNatH: 0, logoRecolor: true,
       logoScale: 1, logoOffsetX: 0, logoOffsetY: 0, logoCrop: { x: 0, y: 0, w: 1, h: 1 },
@@ -185,7 +186,7 @@
     if (typeof d.brandLabelOffsetX !== 'number') d.brandLabelOffsetX = 0;
     if (typeof d.brandLabelOffsetY !== 'number') d.brandLabelOffsetY = 0;
     if (!FONT_STACKS[d.brandLabelFont]) d.brandLabelFont = 'hei';
-    if (typeof d.framePad !== 'number') d.framePad = 22;
+    if (typeof d.framePad !== 'number') d.framePad = 0;
     if (typeof d.footerNote !== 'string') d.footerNote = DEFAULT_FOOTER;
     if (!FONT_STACKS[d.coverFont]) d.coverFont = 'hei';
     if (typeof d.sloganSize !== 'number') d.sloganSize = 24;
@@ -231,10 +232,22 @@
   }
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
   function freshState() { return { platform: 'xhs', uiColor: 'alipay', decks: { xhs: newDeck(), xls: newDeck() } }; }
+  // v2→v3：内容边距从「整框 padding（连报头一起动）」改为「仅内容盒 padding（报头固定）」。
+  // 旧 framePad 同时是报头的内缩量(基准 22)，迁移时减 22 让表格位置不变、报头被钉到固定 22。
+  function migrateFramePad(s) {
+    const fix = (o) => { if (o && typeof o.framePad === 'number') o.framePad = Math.max(0, o.framePad - 22); };
+    const decks = s.decks ? [s.decks.xhs, s.decks.xls] : [s];
+    decks.forEach((d) => { if (!d) return; fix(d); (d.pages || []).forEach(fix); });
+    return s;
+  }
   function loadState() {
     try {
-      const s = JSON.parse(localStorage.getItem(LS_KEY));
+      let raw = localStorage.getItem(LS_KEY);
+      let migrated = false;
+      if (raw == null) { const old = localStorage.getItem(LS_KEY_OLD); if (old != null) { raw = old; migrated = true; } }
+      let s = JSON.parse(raw);
       if (!s || typeof s !== 'object') return freshState();
+      if (migrated) s = migrateFramePad(s);
       const platform = (s.platform === 'xls') ? 'xls' : 'xhs';
       const uiColor = typeof s.uiColor === 'string' ? s.uiColor : 'alipay';
       if (s.decks && s.decks.xhs && s.decks.xls) return { platform, uiColor, decks: { xhs: normalizeDeck(s.decks.xhs), xls: normalizeDeck(s.decks.xls) } };
@@ -311,7 +324,7 @@
   function footerHTML(page) {
     const t = D().footerNote;
     if (page.type === 'cover' || page.noFooter || !t) return '';
-    const W = state.platform === 'xls' ? (CARD_W - 24 - 2 * pgFramePad(page)) : (CARD_W - 60);
+    const W = state.platform === 'xls' ? (CARD_W - 24 - 2 * 22) : (CARD_W - 60);
     let wl = 0; for (const ch of String(t)) wl += (ch.charCodeAt(0) > 255 ? 1 : 0.55);
     const size = Math.max(7, Math.min(13, (W * 0.98) / Math.max(1, wl)));
     return `<div class="card-footer" style="font-size:${size.toFixed(1)}px">${esc(t)}</div>`;
@@ -579,7 +592,7 @@
     }
     b.appendChild(label('本页间距（只影响这一页）'));
     b.appendChild(pageRange('报头间距', page, 'mastheadGap', 18, 0, 64));
-    if (state.platform === 'xls') b.appendChild(pageRange('内容边距', page, 'framePad', 22, 4, 40));
+    if (state.platform === 'xls') b.appendChild(pageRange('内容边距', page, 'framePad', 0, 0, 30));
     if (page.type === 'canvas') {
       const row = mk('div', 'lg-inline'); const sl = mk('span'); sl.textContent = '左右边距'; row.appendChild(sl);
       const inp = mk('input', 'lg-mini', { type: 'range', min: '0', max: '25', step: '1' });

@@ -133,7 +133,7 @@ summary::-webkit-details-marker { display: none; }
 }
 .frame { box-sizing: border-box; width: 100%; height: 100%; display: flex; flex-direction: column; }
 [data-platform="xls"] .page-card { padding: 0; }
-[data-platform="xls"] .frame { border: 12px solid var(--accent); border-radius: 0; padding: var(--frame-pad, 22px); }
+[data-platform="xls"] .frame { border: 12px solid var(--accent); border-radius: 0; padding: 22px; }
 [data-platform="xhs"] .frame { border: 0; padding: 0; }
 
 /* 报头 */
@@ -174,7 +174,7 @@ summary::-webkit-details-marker { display: none; }
 /* 内容盒 */
 .content-box { flex: 1 1 auto; min-height: 0; overflow: hidden; }
 [data-platform="xhs"] .content-box { border: 3px solid var(--accent); border-radius: 26px; padding: 30px 32px; }
-[data-platform="xls"] .content-box { border: 0; padding: 2px 2px; }
+[data-platform="xls"] .content-box { border: 0; padding: 2px var(--frame-pad, 0px); }
 
 .card-footer { flex: 0 0 auto; margin-top: 14px; font-size: 13px; color: var(--footer-color); text-align: center; white-space: nowrap; overflow: hidden; }
 
