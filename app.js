@@ -1,8 +1,7 @@
 (function () {
   'use strict';
 
-  const LS_KEY = 'redgreen:v3';
-  const LS_KEY_OLD = 'redgreen:v2';
+  const LS_KEY = 'redgreen:v4';
   const CARD_W = 540, CARD_H = 720, EXPORT_SCALE = 2;
   const DISP_W = 250;
   const TYPE_LABEL = { cover: '封面', bilingual: '双语分析', table: '排名表格', list: '列表', policy: '政策', text: '文本', canvas: '自由画布' };
@@ -122,13 +121,11 @@
     const n = await imgNat(src);
     if (n.w && n.h) memojiNat = n;
   }
-  // 封面人物：底部贴近边框、水平居中。按图片真实宽高比算高度，y 让其底边落在 ~0.97。
+  // 封面人物：用 CSS 底部锚定（bottom），无论内容盒多高都贴在底部、水平居中；
+  // 一旦用户拖动/微移，会转成普通的 top 定位（见 unanchorEl）。
   function coverMemojiEl(src) {
-    const CW = 470, CH = 600, w = 0.30;
-    const ar = (memojiNat && memojiNat.w) ? memojiNat.h / memojiNat.w : 1;
-    const hFrac = (w * CW / CH) * ar;
-    const y = Math.max(0.04, 0.97 - hFrac);
-    return { id: uid(), kind: 'image', x: (1 - w) / 2, y, w: w, src: src };
+    const w = 0.30;
+    return { id: uid(), kind: 'image', x: (1 - w) / 2, w: w, anchor: 'bottom', by: 0, src: src };
   }
   function elementsFromContent(type, c, opts) {
     opts = opts || {}; const coverFont = opts.coverFont || 'hei', memoji = opts.memojiData || null;
@@ -240,14 +237,32 @@
     decks.forEach((d) => { if (!d) return; fix(d); (d.pages || []).forEach(fix); });
     return s;
   }
+  // v3→v4：封面人物改为 CSS 底部锚定。把已存在的封面人物图片元素转成 anchor:'bottom'，让它贴底（一次性）。
+  function migrateMemojiAnchor(s) {
+    const fixDeck = (d) => {
+      if (!d) return;
+      (d.pages || []).forEach((pg) => {
+        if (!pg || pg.type !== 'canvas' || pg.preset !== 'cover') return;
+        (pg.elements || []).forEach((el) => {
+          if (el && el.kind === 'image' && !el.anchor && d.memojiData && el.src === d.memojiData) {
+            el.anchor = 'bottom'; el.by = 0; delete el.y;
+            const w = el.w || 0.3; el.x = (1 - w) / 2;
+          }
+        });
+      });
+    };
+    (s.decks ? [s.decks.xhs, s.decks.xls] : [s]).forEach(fixDeck);
+    return s;
+  }
   function loadState() {
     try {
-      let raw = localStorage.getItem(LS_KEY);
-      let migrated = false;
-      if (raw == null) { const old = localStorage.getItem(LS_KEY_OLD); if (old != null) { raw = old; migrated = true; } }
+      let raw = localStorage.getItem(LS_KEY), from = 4;
+      if (raw == null) { raw = localStorage.getItem('redgreen:v3'); if (raw != null) from = 3; }
+      if (raw == null) { raw = localStorage.getItem('redgreen:v2'); if (raw != null) from = 2; }
       let s = JSON.parse(raw);
       if (!s || typeof s !== 'object') return freshState();
-      if (migrated) s = migrateFramePad(s);
+      if (from <= 2) s = migrateFramePad(s);
+      if (from <= 3) s = migrateMemojiAnchor(s);
       const platform = (s.platform === 'xls') ? 'xls' : 'xhs';
       const uiColor = typeof s.uiColor === 'string' ? s.uiColor : 'alipay';
       if (s.decks && s.decks.xhs && s.decks.xls) return { platform, uiColor, decks: { xhs: normalizeDeck(s.decks.xhs), xls: normalizeDeck(s.decks.xls) } };
@@ -387,7 +402,8 @@
     }
   }
   function canvasElHTML(e) {
-    const pos = `left:${(e.x * 100).toFixed(3)}%;top:${(e.y * 100).toFixed(3)}%;width:${(e.w * 100).toFixed(3)}%;`;
+    const vert = (e.kind === 'image' && e.anchor === 'bottom') ? `bottom:${((e.by || 0) * 100).toFixed(3)}%;` : `top:${(e.y * 100).toFixed(3)}%;`;
+    const pos = `left:${(e.x * 100).toFixed(3)}%;${vert}width:${(e.w * 100).toFixed(3)}%;`;
     if (e.kind === 'image') return `<div class="cv-el cv-img" style="${pos}"><img src="${e.src}" alt="" /></div>`;
     const font = FONT_STACKS[e.font] || 'inherit';
     const color = e.color ? e.color : 'var(--ink)';
@@ -725,7 +741,7 @@
   }
   function normEl(e) {
     if (!e) return null;
-    if (e.kind === 'image') { if (!e.src) return null; return { id: uid(), kind: 'image', x: num(e.x, 0.1), y: num(e.y, 0.1), w: num(e.w, 0.5), src: String(e.src) }; }
+    if (e.kind === 'image') { if (!e.src) return null; const o = { id: uid(), kind: 'image', x: num(e.x, 0.1), y: num(e.y, 0.1), w: num(e.w, 0.5), src: String(e.src) }; if (e.anchor === 'bottom') { o.anchor = 'bottom'; o.by = num(e.by, 0); } return o; }
     return { id: uid(), kind: 'text', x: num(e.x, 0.1), y: num(e.y, 0.1), w: num(e.w, 0.8), text: str(e.text, ''), size: num(e.size, 36), color: str(e.color, ''), weight: num(e.weight, 700), align: ALIGNS.includes(e.align) ? e.align : 'left', font: FONT_STACKS[e.font] ? e.font : 'hei', lh: num(e.lh, 1.3), ls: num(e.ls, 0) };
   }
   function onFill() {
@@ -915,7 +931,9 @@
   function buildEditableEl(e) {
     const node = mk('div', 'cv-el ' + (e.kind === 'image' ? 'cv-img' : 'cv-text'));
     node._el = e;
-    node.style.left = (e.x * 100) + '%'; node.style.top = (e.y * 100) + '%'; node.style.width = (e.w * 100) + '%';
+    node.style.left = (e.x * 100) + '%'; node.style.width = (e.w * 100) + '%';
+    if (e.kind === 'image' && e.anchor === 'bottom') { node.style.bottom = ((e.by || 0) * 100) + '%'; node.style.top = 'auto'; }
+    else node.style.top = (e.y * 100) + '%';
     if (e.kind === 'image') {
       const img = mk('img'); img.src = e.src; img.draggable = false; node.appendChild(img);
     } else {
@@ -953,9 +971,19 @@
     applyCvSelClasses(); updateCvToolbar();
   }
   function boxRect() { return cv.box.getBoundingClientRect(); }
+  // 底部锚定的人物，被拖动/微移时转成普通 top 定位（记录当前实际位置）
+  function unanchorEl(el) {
+    if (!el || el.anchor !== 'bottom') return;
+    const n = cv && cv.box ? [...cv.box.children].find((c) => c._el === el) : null;
+    if (n && cv.box) el.y = clamp(n.offsetTop / cv.box.getBoundingClientRect().height, 0, 1);
+    else if (el.y == null) el.y = 0.7;
+    delete el.anchor; delete el.by;
+    if (n) { n.style.top = (el.y * 100) + '%'; n.style.bottom = 'auto'; }
+  }
   function startDrag(ev, e, node) {
     ev.preventDefault();
     const set = cv.selSet || [];
+    unanchorEl(e); set.forEach(unanchorEl);
     const r = boxRect(), sx = ev.clientX, sy = ev.clientY;
     if (set.length > 1 && set.includes(e)) { // 多选一起移动
       const starts = set.map((el) => ({ el, ox: el.x, oy: el.y }));
@@ -1038,6 +1066,7 @@
       const dir = map[e.key]; if (!dir) return;
       e.preventDefault();
       const step = e.shiftKey ? 0.02 : 0.004;
+      cv.selSet.forEach(unanchorEl);
       cv.selSet.forEach((el) => { el.x = clamp(el.x + dir[0] * step, 0, 1); el.y = clamp(el.y + dir[1] * step, 0, 1); const n = [...cv.box.children].find((c) => c._el === el); if (n) { n.style.left = (el.x * 100) + '%'; n.style.top = (el.y * 100) + '%'; } });
       save();
     });
