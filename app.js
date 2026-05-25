@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  const LS_KEY = 'redgreen:v4';
+  const LS_KEY = 'redgreen:v5';
   const CARD_W = 540, CARD_H = 720, EXPORT_SCALE = 2;
   const DISP_W = 250;
   const TYPE_LABEL = { cover: '封面', bilingual: '双语分析', table: '排名表格', list: '列表', policy: '政策', text: '文本', canvas: '自由画布' };
@@ -175,7 +175,7 @@
         if (c.showMemoji !== false && memoji) els.push(coverMemojiEl(memoji));
         break;
       case 'text': push(c.title || '', 46, HEAD, 900); push(c.body || '', 24, INK, 400); break;
-      case 'policy': push(c.title || '', 42, HEAD, 900); (c.points || []).forEach((pt) => push('· ' + pt, 24, INK, 500)); break;
+      case 'policy': push(c.title || '', 42, HEAD, 900); (c.points || []).forEach((pt) => push(pt, 24, INK, 500)); break;
       case 'list': push(c.heading || '', 34, HEAD, 800); (c.items || []).forEach((it, i) => push((i + 1) + '. ' + it.name + (it.note ? '  ' + it.note : ''), 24, INK, 500)); break;
       case 'bilingual':
         push(c.heading || '', 30, HEAD, 800);
@@ -287,15 +287,29 @@
     (s.decks ? [s.decks.xhs, s.decks.xls] : [s]).forEach(fixDeck);
     return s;
   }
+  // v4→v5：去掉政策页要点前由代码自动添加的「· 」前缀（一次性）
+  function migrateStripPolicyDots(s) {
+    const fixDeck = (d) => {
+      if (!d) return;
+      (d.pages || []).forEach((pg) => {
+        if (!pg || pg.type !== 'canvas' || pg.preset !== 'policy') return;
+        (pg.elements || []).forEach((el) => { if (el && el.kind === 'text' && typeof el.text === 'string') el.text = el.text.replace(/^·\s?/, ''); });
+      });
+    };
+    (s.decks ? [s.decks.xhs, s.decks.xls] : [s]).forEach(fixDeck);
+    return s;
+  }
   function loadState() {
     try {
-      let raw = localStorage.getItem(LS_KEY), from = 4;
+      let raw = localStorage.getItem(LS_KEY), from = 5;
+      if (raw == null) { raw = localStorage.getItem('redgreen:v4'); if (raw != null) from = 4; }
       if (raw == null) { raw = localStorage.getItem('redgreen:v3'); if (raw != null) from = 3; }
       if (raw == null) { raw = localStorage.getItem('redgreen:v2'); if (raw != null) from = 2; }
       let s = JSON.parse(raw);
       if (!s || typeof s !== 'object') return freshState();
       if (from <= 2) s = migrateFramePad(s);
       if (from <= 3) s = migrateMemojiAnchor(s);
+      if (from <= 4) s = migrateStripPolicyDots(s);
       const platform = (s.platform === 'xls') ? 'xls' : 'xhs';
       const uiColor = typeof s.uiColor === 'string' ? s.uiColor : 'alipay';
       if (s.decks && s.decks.xhs && s.decks.xls) return { platform, uiColor, decks: { xhs: normalizeDeck(s.decks.xhs, 'xhs'), xls: normalizeDeck(s.decks.xls, 'xls') } };
@@ -668,7 +682,7 @@
         if (page.showMemoji !== false && state.platform === 'xhs' && (D().memojiData || memojiDataUri)) els.push(coverMemojiEl(D().memojiData || memojiDataUri));
         break;
       case 'text': push(page.title, 46, heading, 900); push(page.body, 24, ink, 400); break;
-      case 'policy': push(page.title, 42, heading, 900); (page.points || []).forEach((pt) => push('· ' + pt, 24, ink, 500)); break;
+      case 'policy': push(page.title, 42, heading, 900); (page.points || []).forEach((pt) => push(pt, 24, ink, 500)); break;
       case 'list': push(page.heading, 34, heading, 800); (page.items || []).forEach((it, i) => push((i + 1) + '. ' + it.name + (it.note ? '  ' + it.note : ''), 24, ink, 500)); break;
       case 'bilingual':
         push(page.heading, 30, heading, 800);
