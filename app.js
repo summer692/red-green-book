@@ -695,6 +695,23 @@
       flash('已逐张下载 ' + D().pages.length + ' 张');
     } catch (e) { alert('导出失败：' + e.message); } finally { btn.disabled = false; btn.textContent = old; }
   }
+  async function shareAll() {
+    if (!D().pages.length) { alert('还没有页面'); return; }
+    const btn = $('#btn-share'); btn.disabled = true; const old = btn.textContent; btn.textContent = '准备中…';
+    try {
+      const files = [];
+      for (let i = 0; i < D().pages.length; i++) {
+        const blob = await (await fetch(await pageToPng(D().pages[i]))).blob();
+        files.push(new File([blob], `${state.platform}-${String(i + 1).padStart(2, '0')}.png`, { type: 'image/png' }));
+      }
+      if (navigator.canShare && navigator.canShare({ files })) {
+        try { await navigator.share({ files, title: 'EduLight 图文' }); flash('已唤起分享，选小红书 / 微信发布或存草稿'); }
+        catch (e) { /* 用户取消，忽略 */ }
+      } else {
+        alert('当前环境不支持「分享到 App」（多见于电脑浏览器）。\n\n请用手机打开本页再点此按钮，即可分享到小红书 / 微信存草稿；或先用「下载全部」保存图片再手动上传。');
+      }
+    } catch (e) { alert('生成失败：' + e.message); } finally { btn.disabled = false; btn.textContent = old; }
+  }
 
   // ---------------- 自由画布编辑器 ----------------
   let cv = null; // { page, box, sel }
@@ -1011,6 +1028,7 @@
     document.querySelectorAll('.ui-color').forEach((b) => b.addEventListener('click', () => setUiColor(b.dataset.ui)));
     document.querySelectorAll('[data-add]').forEach((b) => b.addEventListener('click', () => { D().pages.push(defaultPage(b.dataset.add, deckOpts())); restructure(); }));
     $('#btn-download-all').addEventListener('click', exportAll);
+    $('#btn-share').addEventListener('click', shareAll);
     $('#btn-ai-open').addEventListener('click', onOpenClaude);
     $('#btn-ai-copy').addEventListener('click', onCopyPrompt);
     $('#btn-ai-fill').addEventListener('click', onFill);
