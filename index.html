@@ -134,6 +134,30 @@
         </div>
       </details>
 
+      <!-- AI 文案：标题/正文/标签 -->
+      <details class="panel">
+        <summary>AI 文案（标题 / 正文 / 标签）</summary>
+        <div class="panel-body">
+          <label class="field-label" for="copy-series">系列标题参考（可空，保持同系列风格一致）</label>
+          <input id="copy-series" class="inp" type="text" placeholder="例：港校2026Fall | 南理工春季开课…" />
+          <div class="btn-row">
+            <button id="copy-gen" class="btn">用 Claude 生成文案 →</button>
+            <button id="copy-gencopy" class="btn btn-ghost">复制提示词</button>
+          </div>
+          <p class="hint">基于当前平台内容 + 该平台推荐算法要点生成；返回后可编辑。生成的标题/正文/标签会随「分享到 App」一起带给小红书 / 微信。</p>
+          <label class="field-label" for="copy-json">粘贴 Claude 返回的 JSON</label>
+          <textarea id="copy-json" class="ta" rows="3" placeholder='{ "titles":[...], "body":"...", "tags":[...] }'></textarea>
+          <div class="btn-row"><button id="copy-fill" class="btn btn-primary">填入</button></div>
+          <label class="field-label">标题（点选其一，可改）</label>
+          <div id="copy-titles" class="copy-titles"></div>
+          <input id="copy-title" class="inp" type="text" />
+          <label class="field-label" for="copy-body">正文</label>
+          <textarea id="copy-body" class="ta" rows="6"></textarea>
+          <label class="field-label" for="copy-tags">标签（空格或逗号分隔）</label>
+          <input id="copy-tags" class="inp" type="text" />
+        </div>
+      </details>
+
       <!-- 加页 -->
       <div class="panel">
         <div class="add-row">

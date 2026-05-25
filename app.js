@@ -150,6 +150,7 @@
       logoData: null, logoNatW: 0, logoNatH: 0, logoRecolor: true,
       logoScale: 1, logoOffsetX: 0, logoOffsetY: 0, logoCrop: { x: 0, y: 0, w: 1, h: 1 },
       memojiData: null, memojiScale: 1, memojiOffsetX: 0, memojiOffsetY: 0,
+      copy: { series: '', titles: [], title: '', body: '', tags: '' },
     };
   }
   function normalizeDeck(s) {
@@ -177,6 +178,8 @@
     if (typeof d.memojiScale !== 'number') d.memojiScale = 1;
     if (typeof d.memojiOffsetX !== 'number') d.memojiOffsetX = 0;
     if (typeof d.memojiOffsetY !== 'number') d.memojiOffsetY = 0;
+    if (!d.copy || typeof d.copy !== 'object') d.copy = { series: '', titles: [], title: '', body: '', tags: '' };
+    else { d.copy.series = str(d.copy.series, ''); d.copy.titles = Array.isArray(d.copy.titles) ? d.copy.titles.map(String) : []; d.copy.title = str(d.copy.title, ''); d.copy.body = str(d.copy.body, ''); d.copy.tags = str(d.copy.tags, ''); }
     d.pages = d.pages.map((pg) => migratePage(pg, d));
     return d;
   }
@@ -634,6 +637,64 @@
     D().pages = pages; restructure(); flash('已填入 ' + pages.length + ' 页');
   }
 
+  // ---------------- AI 文案（标题/正文/标签，按平台算法） ----------------
+  const ALGO_VER = '2026.05';
+  const ALGO = {
+    xhs: ['【小红书·自然流量要点 v' + ALGO_VER + '】',
+      '- 标题≤20字，前6字最关键；含核心关键词+利益点/数字/情绪，可少量 emoji。',
+      '- 正文：结论/痛点前置，前3行抓人；分点、口语化、真实分享感；自然铺核心关键词与近义词（吃搜索流量）；结尾引导评论/收藏/关注。',
+      '- 标签 6-10 个：大词(#留学)+垂类(#香港留学)+长尾(#港大申请)+相关热点话题，混合使用。',
+      '- 垂直度、完播与互动率影响推荐；忌标题党与违规词。'].join('\n'),
+    xls: ['【微信(小绿书/公众号)·自然流量要点 v' + ALGO_VER + '】',
+      '- 依赖社交分发+搜一搜+标签；标题清晰含关键词，少标题党。',
+      '- 正文结构化、信息密度高、专业可信；适度 emoji；利于「看一看/搜一搜」。',
+      '- 标签精准 4-8 个，覆盖核心词与长尾词；结尾可引导转发/在看。'].join('\n'),
+  };
+  function extractDeckText() {
+    const out = [];
+    D().pages.forEach((p, i) => {
+      out.push('【第' + (i + 1) + '页 ' + (TYPE_LABEL[p.preset || p.type] || '') + '】');
+      if (p.type === 'table') { if (p.title) out.push(p.title); out.push((p.columns || []).join(' | ')); (p.rows || []).forEach((r) => out.push((r || []).join(' | '))); }
+      else (p.elements || []).forEach((e) => { if (e.kind === 'text' && e.text) out.push(e.text); });
+    });
+    return out.join('\n');
+  }
+  function buildCopyPrompt() {
+    const plat = state.platform === 'xhs' ? '小红书' : '微信（小绿书 / 公众号）';
+    const series = D().copy.series ? ('已有同系列标题风格参考（请保持风格一致）：「' + D().copy.series + '」') : '（无系列参考）';
+    return [
+      '你是' + plat + '运营专家，目标是获得自然流量曝光。根据下面这条图文的内容，产出发布文案。',
+      state.platform === 'xhs' ? ALGO.xhs : ALGO.xls,
+      series,
+      '严格只输出一个 JSON（不要解释、不要代码块围栏）：',
+      '{ "titles": ["标题A","标题B","标题C"], "body": "正文，可用\\n换行", "tags": ["#标签1","#标签2"] }',
+      '- 3 个标题风格不同（如 干货直给 / 情绪共鸣 / 数字清单），均≤20字并符合上述算法要点；若有系列参考则保持统一。',
+      '- 正文与标签均针对该平台自然流量优化。',
+      '内容：', '"""', extractDeckText(), '"""',
+    ].join('\n');
+  }
+  function onCopyGen() { window.open('claude://claude.ai/new?q=' + encodeURIComponent(buildCopyPrompt()), '_blank', 'noopener'); }
+  function onCopyGenCopy() { const p = buildCopyPrompt(); copyText(p).then((ok) => { if (ok) flash('已复制文案提示词'); else window.prompt('复制这段去 Claude：', p); }); }
+  function onCopyFill() {
+    const t = $('#copy-json').value; if (!t.trim()) { alert('先粘贴 Claude 返回的 JSON'); return; }
+    let o; try { let s = t.trim().replace(/^```(?:json)?/i, '').replace(/```\s*$/i, '').trim(); const a = s.indexOf('{'), b = s.lastIndexOf('}'); if (a >= 0 && b > a) s = s.slice(a, b + 1); o = JSON.parse(s); } catch (e) { alert('解析失败：' + e.message); return; }
+    const c = D().copy;
+    c.titles = Array.isArray(o.titles) ? o.titles.map(String).slice(0, 5) : [];
+    c.title = c.titles[0] || c.title || '';
+    c.body = str(o.body, '');
+    c.tags = Array.isArray(o.tags) ? o.tags.map(String).join(' ') : str(o.tags, '');
+    save(); renderCopyPanel(); flash('文案已填入，可编辑');
+  }
+  function renderCopyTitles() {
+    const box = $('#copy-titles'); if (!box) return; box.innerHTML = '';
+    (D().copy.titles || []).forEach((t) => { const b = mk('button', 'btn btn-sm copy-title-opt'); b.textContent = t; if (t === D().copy.title) b.classList.add('is-active'); b.addEventListener('click', () => { D().copy.title = t; $('#copy-title').value = t; renderCopyTitles(); save(); }); box.appendChild(b); });
+  }
+  function renderCopyPanel() {
+    const c = D().copy;
+    $('#copy-series').value = c.series; $('#copy-title').value = c.title; $('#copy-body').value = c.body; $('#copy-tags').value = c.tags;
+    renderCopyTitles();
+  }
+
   // ---------------- 导出（自包含：SVG foreignObject → canvas → PNG） ----------------
   async function getCSS() {
     if (cssCache != null) return cssCache;
@@ -704,8 +765,11 @@
         const blob = await (await fetch(await pageToPng(D().pages[i]))).blob();
         files.push(new File([blob], `${state.platform}-${String(i + 1).padStart(2, '0')}.png`, { type: 'image/png' }));
       }
+      const c = D().copy, txt = [c.title, c.body, c.tags].filter(Boolean).join('\n\n');
+      const full = { files, text: txt, title: c.title || 'EduLight 图文' };
       if (navigator.canShare && navigator.canShare({ files })) {
-        try { await navigator.share({ files, title: 'EduLight 图文' }); flash('已唤起分享，选小红书 / 微信发布或存草稿'); }
+        const payload = (txt && navigator.canShare(full)) ? full : { files, title: c.title || 'EduLight 图文' };
+        try { await navigator.share(payload); flash('已唤起分享，选小红书 / 微信发布或存草稿'); }
         catch (e) { /* 用户取消，忽略 */ }
       } else {
         alert('当前环境不支持「分享到 App」（多见于电脑浏览器）。\n\n请用手机打开本页再点此按钮，即可分享到小红书 / 微信存草稿；或先用「下载全部」保存图片再手动上传。');
@@ -923,6 +987,7 @@
     $('#set-slogan-size').value = d.sloganSize;
     $('#set-slogan-x').value = d.sloganOffsetX;
     $('#set-slogan-y').value = d.sloganOffsetY;
+    renderCopyPanel();
     const other = state.platform === 'xhs' ? '小绿书' : '小红书';
     const cp = $('#btn-copy-other'); if (cp) cp.textContent = '复制内容到' + other;
     $('#xls-only').style.display = state.platform === 'xls' ? '' : 'none';
@@ -1029,6 +1094,13 @@
     document.querySelectorAll('[data-add]').forEach((b) => b.addEventListener('click', () => { D().pages.push(defaultPage(b.dataset.add, deckOpts())); restructure(); }));
     $('#btn-download-all').addEventListener('click', exportAll);
     $('#btn-share').addEventListener('click', shareAll);
+    $('#copy-gen').addEventListener('click', onCopyGen);
+    $('#copy-gencopy').addEventListener('click', onCopyGenCopy);
+    $('#copy-fill').addEventListener('click', onCopyFill);
+    $('#copy-series').addEventListener('input', () => { D().copy.series = $('#copy-series').value; save(); });
+    $('#copy-title').addEventListener('input', () => { D().copy.title = $('#copy-title').value; save(); });
+    $('#copy-body').addEventListener('input', () => { D().copy.body = $('#copy-body').value; save(); });
+    $('#copy-tags').addEventListener('input', () => { D().copy.tags = $('#copy-tags').value; save(); });
     $('#btn-ai-open').addEventListener('click', onOpenClaude);
     $('#btn-ai-copy').addEventListener('click', onCopyPrompt);
     $('#btn-ai-fill').addEventListener('click', onFill);
