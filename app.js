@@ -1034,6 +1034,10 @@
   async function loadAssets() {
     const appLogo = await loadImageAsset(['assets/app-logo.png', 'assets/app-logo.svg', 'assets/app-logo.webp', 'assets/app-logo.jpg', 'logo.png', 'assets/logo.png', 'app-logo.png']);
     if (appLogo) { const el = $('#brand-logo'); if (el) el.innerHTML = '<img class="brand-img" src="' + appLogo + '" alt="红绿书出图器" />'; }
+    const icoXhs = await loadImageAsset(['assets/tab-xhs.png', 'assets/tab-xhs.svg', 'xhs.png', 'assets/xhs.png', 'icon-xhs.png']);
+    if (icoXhs) { const el = $('#ico-xhs'); if (el) el.innerHTML = '<img class="plat-ico" src="' + icoXhs + '" alt="" />'; }
+    const icoXls = await loadImageAsset(['assets/tab-xls.png', 'assets/tab-xls.svg', 'xls.png', 'assets/xls.png', 'icon-xls.png']);
+    if (icoXls) { const el = $('#ico-xls'); if (el) el.innerHTML = '<img class="plat-ico" src="' + icoXls + '" alt="" />'; }
     for (const k of ['xhs', 'xls']) { const dk = state.decks[k]; if (dk.logoData && (!dk.logoNatW || !dk.logoNatH)) { const n = await imgNat(dk.logoData); dk.logoNatW = n.w; dk.logoNatH = n.h; save(); } }
     logoDataUri = await loadImageAsset(['assets/logo-mark.svg', 'assets/logo-mark.png']);
     if (logoDataUri) logoAssetNat = await imgNat(logoDataUri);

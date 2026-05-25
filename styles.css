@@ -30,7 +30,8 @@ input[type="range"], input[type="checkbox"], input[type="color"], select { accen
   display: inline-flex; align-items: center; gap: 5px;
   transition: all .18s cubic-bezier(.25,.46,.45,.94);
 }
-.plat-ico { width: 16px; height: 16px; display: block; }
+.plat-ico-wrap { display: inline-flex; align-items: center; }
+.plat-ico { width: 16px; height: 16px; display: block; object-fit: contain; }
 .plat-btn.is-active { background: #fff; color: var(--ui-accent); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
 .ui-colors { margin-left: auto; display: inline-flex; gap: 7px; align-items: center; }
 .ui-color { width: 20px; height: 20px; border-radius: 50%; border: 0; padding: 0; cursor: pointer; background: var(--c); box-shadow: 0 0 0 1px rgba(0,0,0,.15); transition: transform .12s ease; }
