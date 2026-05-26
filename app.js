@@ -235,7 +235,7 @@
   const DEF_CROP = { x: 0, y: 0, w: 1, h: 1 };
   function newDeck() {
     return {
-      pages: [defaultPage('cover')],
+      pages: [defaultPage('cover', { coverFont: 'deyi' })],
       brandLabel: '签证信息', brandLabelSize: 24, brandLabelOffsetX: 0, brandLabelOffsetY: 0, brandLabelFont: 'hei', framePad: 0, footerNote: DEFAULT_FOOTER, coverFont: 'deyi',
       sloganSize: 24, sloganOffsetX: 0, sloganOffsetY: 0,
       logoData: null, logoNatW: 0, logoNatH: 0, logoRecolor: true,
@@ -1105,18 +1105,19 @@
     cv.gv = mk('div', 'cv-guide cv-guide-v'); cv.gh = mk('div', 'cv-guide cv-guide-h');
     // 点击画布空白处即取消选择：只要落点不在某个元素(.cv-el)上就清空选择。
     // 旧逻辑只认 content-box/tpl-canvas 本身，文本框的包围盒盖住了行间空白，导致空白处其实点在文本框上，取消全选要靠运气。
-    card.addEventListener('pointerdown', (e) => { if (!e.target.closest('.cv-el')) selectEl(null); });
+    card.addEventListener('pointerdown', (e) => { if (!e.target.closest('.cv-el')) { endEditing(); selectEl(null); } });
     rebuildCanvasEls();
     $('#cv-modal').hidden = false;
     updateCvToolbar();
   }
-  function closeCanvasEditor() { $('#cv-modal').hidden = true; cv = null; save(); renderEditors(); renderPreview(); }
+  function closeCanvasEditor() { endEditing(); $('#cv-modal').hidden = true; cv = null; save(); renderEditors(); renderPreview(); }
 
   function applyCvSelClasses() {
     const set = cv.selSet || [];
     [...cv.box.children].forEach((n) => { if (n._el) { n.classList.toggle('selected', set.includes(n._el)); n.classList.toggle('primary', n._el === cv.sel); } });
   }
   function rebuildCanvasEls() {
+    endEditing();
     const box = cv.box; box.innerHTML = '';
     cv.page.elements.forEach((e) => box.appendChild(buildEditableEl(e)));
     if (cv.refs) { cv.refs.forEach((r) => box.appendChild(r)); box.appendChild(cv.gv); box.appendChild(cv.gh); }
@@ -1141,6 +1142,7 @@
     const handle = mk('div', 'cv-handle'); node.appendChild(handle);
     node.addEventListener('pointerdown', (ev) => {
       if (ev.target === handle || node.classList.contains('editing')) return;
+      if (cv.editSpan && cv.editEl !== e) endEditing(); // 切到别的元素前，先把上一个仍在编辑的文本框收尾保存，避免卡死/丢字
       if (ev.shiftKey) { ev.preventDefault(); selectEl(e, true); return; }
       if (!(cv.selSet || []).includes(e)) selectEl(e);
       startDrag(ev, e, node);
@@ -1218,18 +1220,27 @@
     const span = node.querySelector('.cv-textspan');
     node.classList.add('editing'); span.contentEditable = 'true'; span.focus();
     cv.editSpan = span; cv.editEl = e; cv.rng = null;
-    const fin = (ev) => {
+    // 打字时实时把内容写回 e.text/e.html（仅内存，不落盘），这样任何重建/取消选择/关闭都不会丢失刚输入的文字
+    const onInput = () => { if (!cv.editEl) return; cv.editEl.text = span.innerText; const html = captureRich(span); if (hasInlineFmt(html)) cv.editEl.html = html; else delete cv.editEl.html; };
+    const onBlur = (ev) => {
       // 焦点转到「字号/取色」控件时不结束编辑：保留可编辑 span 与选区，以便只对选中文字改字号/颜色
       const to = ev && ev.relatedTarget;
       if (to && (to.id === 'cv-size' || to.id === 'cv-color')) return;
-      span.contentEditable = 'false'; node.classList.remove('editing');
-      e.text = span.innerText;
-      const html = captureRich(span);
-      if (hasInlineFmt(html)) e.html = html; else delete e.html;
-      cv.editSpan = null; cv.editEl = null; cv.rng = null;
-      span.removeEventListener('blur', fin); save();
+      endEditing();
     };
-    span.addEventListener('blur', fin);
+    cv.editCleanup = () => { span.removeEventListener('input', onInput); span.removeEventListener('blur', onBlur); };
+    span.addEventListener('input', onInput);
+    span.addEventListener('blur', onBlur);
+  }
+  // 结束文字编辑：写回内容并清理状态/监听。可在 blur、重建画布、取消选择、关闭编辑器等多处安全调用（无编辑态时为空操作）。
+  function endEditing() {
+    if (!cv || !cv.editSpan) return;
+    const span = cv.editSpan, el = cv.editEl, node = span.closest ? span.closest('.cv-el') : null;
+    if (cv.editCleanup) { cv.editCleanup(); cv.editCleanup = null; }
+    span.contentEditable = 'false'; if (node) node.classList.remove('editing');
+    if (el) { el.text = span.innerText; const html = captureRich(span); if (hasInlineFmt(html)) el.html = html; else delete el.html; }
+    cv.editSpan = null; cv.editEl = null; cv.rng = null;
+    save();
   }
   // 正在文字编辑态：返回当前可编辑 span，否则 null
   function editingSpan() { return cv && cv.editSpan && cv.editSpan.isContentEditable ? cv.editSpan : null; }
