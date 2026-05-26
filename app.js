@@ -995,7 +995,7 @@
       }
       if (localFontB64[key]) {
         const dataUrl = `data:font/woff2;base64,${localFontB64[key]}`;
-        out += `@font-face{font-family:"${lf.fam}";src:url(${dataUrl}) format("woff2");font-weight:100 900;font-display:block;}\n`;
+        out += `@font-face{font-family:"${lf.fam}";src:url(${dataUrl}) format("woff2");font-weight:100 900;font-display:swap;}\n`;
         // 把同一份 base64 字体注册进 document.fonts 并等待解码：大字库(狮尾黑体≈4.8MB)若在 SVG 光栅化瞬间还没就绪，
         // font-display:block 会把文字画成空白——预先解码后，SVG 内相同 data URI 的 @font-face 即可命中已解码字体，正常上色。
         if (!localFaceLoaded[key] && typeof FontFace !== 'undefined') {
@@ -1007,7 +1007,9 @@
     return out;
   }
   async function pageToPng(page) {
-    const css = exportFontFace() + '\n' + (await inlineWebFonts(page)) + '\n' + (await inlineLocalFonts(page)) + '\n' + (await getCSS());
+    const localCss = await inlineLocalFonts(page);
+    const usesLocalFont = !!localCss.trim();
+    const css = exportFontFace() + '\n' + (await inlineWebFonts(page)) + '\n' + localCss + '\n' + (await getCSS());
     const inner = `<div class="page-card" data-platform="${state.platform}" style="width:${CARD_W}px;height:${CARD_H}px;transform:none;--cover-font:${coverFontStack()};--frame-pad:${pgFramePad(page)}px;--mh-gap:${pgMhGap(page)}px;${deckColorStyle()}">${buildCardHTML(page)}</div>`;
     const svg =
       `<svg xmlns="http://www.w3.org/2000/svg" width="${CARD_W}" height="${CARD_H}">` +
@@ -1019,7 +1021,15 @@
     await new Promise((res, rej) => { img.onload = () => res(); img.onerror = () => rej(new Error('图片渲染失败')); img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg); });
     try { await img.decode(); } catch (e) {}
     const canvas = mk('canvas'); canvas.width = CARD_W * EXPORT_SCALE; canvas.height = CARD_H * EXPORT_SCALE;
-    const ctx = canvas.getContext('2d'); ctx.scale(EXPORT_SCALE, EXPORT_SCALE); ctx.drawImage(img, 0, 0);
+    const ctx = canvas.getContext('2d'); ctx.scale(EXPORT_SCALE, EXPORT_SCALE);
+    ctx.drawImage(img, 0, 0);
+    if (usesLocalFont) {
+      // 自带大字库(狮尾黑体≈4.8MB)的 @font-face 在 SVG 图里是异步解码的，首帧常常还没就绪 → 文字被 font-display:block 画成空白。
+      // SVG 作为图片每次 drawImage 都会按需重新栅格化，等其解码完成后清空重绘一次即可捕获到已加载的字体。
+      await new Promise((res) => setTimeout(res, 650));
+      ctx.clearRect(0, 0, CARD_W, CARD_H);
+      ctx.drawImage(img, 0, 0);
+    }
     return canvas.toDataURL('image/png');
   }
   function downloadDataUrl(dataUrl, filename) { const a = mk('a'); a.href = dataUrl; a.download = filename; document.body.appendChild(a); a.click(); a.remove(); }
