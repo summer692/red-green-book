@@ -1286,9 +1286,10 @@
     $('#cv-all').addEventListener('click', selectAllText);
     // 字号/颜色：编辑文字且有选区时只改选中片段；否则改整个文本框。原生输入框会抢焦点，故内联改动放在 change（提交）时执行，避免边输入边抢回焦点
     $('#cv-size').addEventListener('input', () => { if (inlineSel()) return; const v = num($('#cv-size').value, 36); applyToSelText((e) => { e.size = v; }); });
-    $('#cv-size').addEventListener('change', () => { if (inlineSel()) applyInlineStyle('fontSize', clamp(num($('#cv-size').value, 36), 8, 240) + 'px'); });
+    $('#cv-size').addEventListener('change', () => { const v = clamp(num($('#cv-size').value, 36), 8, 240); if (inlineSel()) applyInlineStyle('fontSize', v + 'px'); else applyToSelText((e) => { e.size = v; }); });
     $('#cv-color').addEventListener('input', () => { if (inlineSel()) return; const v = $('#cv-color').value; applyToSelText((e) => { e.color = v; }); });
-    $('#cv-color').addEventListener('change', () => { if (inlineSel()) applyInlineStyle('color', $('#cv-color').value); });
+    // 取色器的「吸管/确认」通常只触发 change（不一定逐次触发 input），所以 change 也要兜底作用到整个文本框，否则用吸管取色会「没反应」
+    $('#cv-color').addEventListener('change', () => { const v = $('#cv-color').value; if (inlineSel()) applyInlineStyle('color', v); else applyToSelText((e) => { e.color = v; }); });
     // 加粗：编辑文字时只加粗选中的片段（用 mousedown+preventDefault 保住选区不失焦）；未编辑时切换整个文本框
     $('#cv-bold').addEventListener('mousedown', (ev) => {
       if (editingSpan()) { ev.preventDefault(); document.execCommand('bold'); syncEditing(); return; }
@@ -1543,7 +1544,7 @@
     $('#set-label-y').addEventListener('input', () => { D().brandLabelOffsetY = num($('#set-label-y').value, 0); touch(); });
     $('#set-label-reset').addEventListener('click', () => { D().brandLabelOffsetX = 0; D().brandLabelOffsetY = 0; $('#set-label-x').value = 0; $('#set-label-y').value = 0; touch(); flash('已复原栏目名位置'); });
     const colMap = { 'col-accent': 'accent', 'col-title': 'title', 'col-heading': 'heading', 'col-ink': 'ink', 'col-thead': 'thead', 'col-thead-ink': 'theadInk' };
-    Object.keys(colMap).forEach((id) => { $('#' + id).addEventListener('input', () => { D().colors[colMap[id]] = $('#' + id).value; touch(); }); });
+    Object.keys(colMap).forEach((id) => { const h = () => { D().colors[colMap[id]] = $('#' + id).value; touch(); }; $('#' + id).addEventListener('input', h); $('#' + id).addEventListener('change', h); });
     $('#col-reset').addEventListener('click', () => { D().colors = emptyColors(); refreshSettingsUI(); touch(); flash('已恢复默认配色'); });
     const slInit = () => { $('#set-slogan-size').value = D().sloganSize; $('#set-slogan-x').value = D().sloganOffsetX; $('#set-slogan-y').value = D().sloganOffsetY; };
     slInit();
