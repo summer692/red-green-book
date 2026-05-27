@@ -4,7 +4,18 @@
   const LS_KEY = 'redgreen:v8';
   const CARD_W = 540, CARD_H = 720, EXPORT_SCALE = 2;
   const DISP_W = 250;
-  const TYPE_LABEL = { cover: '封面', bilingual: '双语分析', table: '排名表格', list: '列表', policy: '政策', text: '文本', canvas: '自由画布' };
+  const PAGE_TYPES = [
+    { type: 'cover', label: '封面', addable: true, convertible: true, noFooter: true, defaultData: defaultCoverData, toElements: coverToElements, toCanvasElements: coverToCanvasElements, render: renderCoverTemplate, renderEditor: renderCoverEditor },
+    { type: 'bilingual', label: '双语分析', convertible: true, defaultData: defaultBilingualData, toElements: bilingualToElements, render: renderBilingualTemplate, renderEditor: renderBilingualEditor },
+    { type: 'table', label: '排名表格', addable: true, createPage: createTablePage, render: renderTableTemplate, renderEditor: renderTableEditor },
+    { type: 'list', label: '列表', addable: true, convertible: true, defaultData: defaultListData, toElements: listToElements, render: renderListTemplate, renderEditor: renderListEditor },
+    { type: 'policy', label: '政策', addable: true, convertible: true, defaultData: defaultPolicyData, toElements: policyToElements, render: renderPolicyTemplate, renderEditor: renderPolicyEditor },
+    { type: 'text', label: '文本', addable: true, convertible: true, defaultData: defaultTextData, toElements: textToElements, render: renderTextTemplate, renderEditor: renderTextEditor },
+    { type: 'canvas', label: '自由画布', addable: true, createPage: createCanvasPage, render: renderCanvasTemplate, renderEditor: renderCanvasEditor },
+  ];
+  const PAGE_TYPE_MAP = Object.fromEntries(PAGE_TYPES.map((def) => [def.type, def]));
+  function pageTypeDef(type) { return PAGE_TYPE_MAP[type] || null; }
+  function pageTypeLabel(type) { const def = pageTypeDef(type); return def ? def.label : type; }
   const ALIGNS = ['left', 'center', 'right'];
   const DEFAULT_FOOTER = '备注：本文所提供的信息均来源于大学官网。申请时请务必以学校官网公布的最新信息为准。';
   const FOOTER_PRESETS = {
@@ -174,15 +185,14 @@
   function uid() { return 'p' + Math.random().toString(36).slice(2, 9); }
 
   // ---------------- 状态 ----------------
+  function defaultCoverData() { return { title: '香港大学\n2026 FALL\n工学院新增', showMemoji: true }; }
+  function defaultBilingualData() { return { heading: '拒签原因一：你没有证明这门课非去澳洲读不可', en: '', cn: '', actionTitle: '要怎么做?', steps: ['', ''] }; }
+  function defaultListData() { return { heading: '本期项目一览', items: [{ name: '项目名称', note: '一句话说明' }] }; }
+  function defaultPolicyData() { return { title: '政策标题', points: ['要点一'] }; }
+  function defaultTextData() { return { title: '标题', body: '正文内容……' }; }
   function templateDefault(type) {
-    switch (type) {
-      case 'cover': return { title: '香港大学\n2026 FALL\n工学院新增', showMemoji: true };
-      case 'bilingual': return { heading: '拒签原因一：你没有证明这门课非去澳洲读不可', en: '', cn: '', actionTitle: '要怎么做?', steps: ['', ''] };
-      case 'list': return { heading: '本期项目一览', items: [{ name: '项目名称', note: '一句话说明' }] };
-      case 'policy': return { title: '政策标题', points: ['要点一'] };
-      case 'text': return { title: '标题', body: '正文内容……' };
-      default: return {};
-    }
+    const def = pageTypeDef(type);
+    return def && def.defaultData ? def.defaultData() : {};
   }
   // 把模板内容铺成画布元素（var() 颜色随主题自适应；不依赖 D() 以便迁移时调用）
   async function refreshMemojiNat() {
@@ -197,6 +207,26 @@
     const w = 0.30;
     return { id: uid(), kind: 'image', x: (1 - w) / 2, w: w, anchor: 'bottom', by: 0, src: src };
   }
+  function coverToElements(c, ctx) {
+    if (c.title) ctx.push(c.title, 80, ctx.TITLE, 900, 'center');
+    if (c.showMemoji !== false && ctx.memoji) ctx.els.push(coverMemojiEl(ctx.memoji));
+  }
+  function coverToCanvasElements(c, ctx) {
+    if (c.title) ctx.push(c.title, 80, ctx.TITLE, 900, 'left');
+    if (c.showMemoji !== false && ctx.memoji) ctx.els.push(coverMemojiEl(ctx.memoji));
+  }
+  function textToElements(c, ctx) { ctx.push(c.title || '', 46, ctx.HEAD, 900); ctx.push(c.body || '', 24, ctx.INK, 400); }
+  function policyToElements(c, ctx) { ctx.push(c.title || '', 42, ctx.HEAD, 900); (c.points || []).forEach((pt) => ctx.push(pt, 24, ctx.INK, 500)); }
+  function listToElements(c, ctx) { ctx.push(c.heading || '', 34, ctx.HEAD, 800); (c.items || []).forEach((it, i) => ctx.push((i + 1) + '. ' + it.name + (it.note ? '  ' + it.note : ''), 24, ctx.INK, 500)); }
+  function bilingualToElements(c, ctx) {
+    ctx.push(c.heading || '', 30, ctx.HEAD, 800);
+    if (c.en) ctx.push(c.en, 21, ctx.INK, 800);
+    if (c.cn) ctx.push(c.cn, 21, ctx.INK, 400);
+    if (c.steps && c.steps.filter(Boolean).length) {
+      ctx.push(c.actionTitle || '要怎么做?', 28, ctx.HEAD, 800);
+      c.steps.filter(Boolean).forEach((s, i) => ctx.push((i + 1) + '. ' + s, 21, ctx.INK, 500));
+    }
+  }
   function elementsFromContent(type, c, opts) {
     opts = opts || {}; const coverFont = opts.coverFont || 'hei', memoji = opts.memojiData || null;
     const els = []; const X = 0.06, W = 0.88, CW = 470, CH = 600; let y = 0.06;
@@ -207,27 +237,16 @@
       els.push({ id: uid(), kind: 'text', x: X, y, w: W, text: String(text), size, color, weight, align: align || 'left', font: type === 'cover' ? coverFont : 'hei' });
       y += (lines * size * 1.32) / CH + 0.025;
     };
-    switch (type) {
-      case 'cover':
-        if (c.title) push(c.title, 80, TITLE, 900, 'center');
-        if (c.showMemoji !== false && memoji) els.push(coverMemojiEl(memoji));
-        break;
-      case 'text': push(c.title || '', 46, HEAD, 900); push(c.body || '', 24, INK, 400); break;
-      case 'policy': push(c.title || '', 42, HEAD, 900); (c.points || []).forEach((pt) => push(pt, 24, INK, 500)); break;
-      case 'list': push(c.heading || '', 34, HEAD, 800); (c.items || []).forEach((it, i) => push((i + 1) + '. ' + it.name + (it.note ? '  ' + it.note : ''), 24, INK, 500)); break;
-      case 'bilingual':
-        push(c.heading || '', 30, HEAD, 800);
-        if (c.en) push(c.en, 21, INK, 800);
-        if (c.cn) push(c.cn, 21, INK, 400);
-        if (c.steps && c.steps.filter(Boolean).length) { push(c.actionTitle || '要怎么做?', 28, HEAD, 800); c.steps.filter(Boolean).forEach((s, i) => push((i + 1) + '. ' + s, 21, INK, 500)); }
-        break;
-    }
+    const def = pageTypeDef(type);
+    if (def && def.toElements) def.toElements(c, { els, push, coverFont, memoji, TITLE, HEAD, INK });
     return els;
   }
-  function presetPage(type, opts) { return { id: uid(), type: 'canvas', preset: type, noFooter: type === 'cover', elements: elementsFromContent(type, templateDefault(type), opts) }; }
+  function presetPage(type, opts) { const def = pageTypeDef(type); return { id: uid(), type: 'canvas', preset: type, noFooter: !!(def && def.noFooter), elements: elementsFromContent(type, templateDefault(type), opts) }; }
+  function createTablePage() { return { id: uid(), type: 'table', title: '录取数据一览', columns: ['专业', '中国学生录取', '全部录取', '申请要求'], rows: [['', '', '', ''], ['', '', '', '']] }; }
+  function createCanvasPage() { return { id: uid(), type: 'canvas', preset: 'canvas', elements: [{ id: uid(), kind: 'text', x: 0.08, y: 0.1, w: 0.84, text: '双击编辑文字', size: 40, color: '', weight: 800, align: 'left', font: 'hei' }] }; }
   function defaultPage(type, opts) {
-    if (type === 'table') return { id: uid(), type: 'table', title: '录取数据一览', columns: ['专业', '中国学生录取', '全部录取', '申请要求'], rows: [['', '', '', ''], ['', '', '', '']] };
-    if (type === 'canvas') return { id: uid(), type: 'canvas', preset: 'canvas', elements: [{ id: uid(), kind: 'text', x: 0.08, y: 0.1, w: 0.84, text: '双击编辑文字', size: 40, color: '', weight: 800, align: 'left', font: 'hei' }] };
+    const def = pageTypeDef(type);
+    if (def && def.createPage) return def.createPage(opts || {});
     return presetPage(type, opts || {});
   }
   // 人物只属于小红书：小绿书封面不自动添加
@@ -293,8 +312,9 @@
     if (pg.type === 'canvas') { if (!Array.isArray(pg.elements)) pg.elements = []; if (typeof pg.preset !== 'string' || pg.preset === 'bilingual') pg.preset = pg.preset === 'bilingual' ? 'text' : (typeof pg.preset === 'string' ? pg.preset : 'canvas'); return pg; }
     if (pg.type === 'table') { if (!Array.isArray(pg.columns)) pg.columns = ['列1', '列2']; if (!Array.isArray(pg.rows)) pg.rows = []; if (typeof pg.title !== 'string') pg.title = ''; return pg; }
     if (pg.type === 'bilingual') pg = Object.assign({ id: pg.id }, biToText(pg));
-    if (['cover', 'list', 'policy', 'text'].includes(pg.type)) {
-      return { id: pg.id || uid(), type: 'canvas', preset: pg.type, noFooter: pg.type === 'cover', elements: elementsFromContent(pg.type, pg, { coverFont: d.coverFont, memojiData: plat === 'xhs' ? d.memojiData : null }) };
+    const def = pageTypeDef(pg.type);
+    if (def && def.toElements) {
+      return { id: pg.id || uid(), type: 'canvas', preset: pg.type, noFooter: !!def.noFooter, elements: elementsFromContent(pg.type, pg, { coverFont: d.coverFont, memojiData: plat === 'xhs' ? d.memojiData : null }) };
     }
     return defaultPage('canvas');
   }
@@ -459,56 +479,57 @@
   function buildCard(page) { const c = mk('div', 'page-card'); c.style.setProperty('--cover-font', coverFontStack()); c.style.setProperty('--frame-pad', pgFramePad(page) + 'px'); c.style.setProperty('--mh-gap', pgMhGap(page) + 'px'); const cl = D().colors || {}; for (const k in COLOR_VARS) if (cl[k]) c.style.setProperty(COLOR_VARS[k], cl[k]); c.innerHTML = buildCardHTML(page); return c; }
 
   // ---------------- 模板 HTML（<img/> 自闭合，导出走 XML 解析） ----------------
+  function renderCoverTemplate(p) {
+    const mjSrc = D().memojiData || memojiDataUri;
+    const showMj = state.platform === 'xhs' && p.showMemoji !== false && mjSrc;
+    const mjStyle = `height:${(190 * (D().memojiScale || 1)).toFixed(1)}px;transform:translate(${D().memojiOffsetX || 0}px,${D().memojiOffsetY || 0}px);`;
+    return `<div class="tpl-cover">
+        <h1 class="cover-title">${esc(p.title)}</h1>
+        ${showMj ? `<img class="cover-memoji" src="${mjSrc}" style="${mjStyle}" alt="" />` : ''}
+      </div>`;
+  }
+  function renderBilingualTemplate(p) {
+    return `<div class="tpl-bilingual">
+        <h2 class="sec-heading">${esc(p.heading)}</h2>
+        ${p.en ? `<p class="bi-en">${esc(p.en)}</p>` : ''}
+        ${p.cn ? `<p class="bi-cn">${esc(p.cn)}</p>` : ''}
+        ${(p.steps && p.steps.filter(Boolean).length) ? `<h3 class="sec-heading action">${esc(p.actionTitle || '要怎么做?')}</h3>
+          <ol class="bi-steps">${p.steps.filter(Boolean).map((s) => `<li>${esc(s)}</li>`).join('')}</ol>` : ''}
+      </div>`;
+  }
+  function renderTableTemplate(p) {
+    return `<div class="tpl-table">
+        ${p.title ? `<h2 class="sec-heading">${esc(p.title)}</h2>` : ''}
+        <table class="tbl">
+          ${(p.columns && p.columns.length) ? `<thead><tr>${p.columns.map((c) => `<th>${esc(c)}</th>`).join('')}</tr></thead>` : ''}
+          <tbody>${(p.rows || []).map((r) => `<tr>${(r || []).map((c) => `<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody>
+        </table>
+      </div>`;
+  }
+  function renderListTemplate(p) {
+    return `<div class="tpl-list">
+        <span class="kicker">${esc(p.heading || '项目一览')}</span>
+        <div class="list-items">
+          ${(p.items || []).map((it, i) => `
+            <div class="list-item">
+              <div class="li-num">${i + 1}</div>
+              <div class="li-text"><div class="li-name">${esc(it.name)}</div>${it.note ? `<div class="li-note">${esc(it.note)}</div>` : ''}</div>
+            </div>`).join('')}
+        </div>
+      </div>`;
+  }
+  function renderPolicyTemplate(p) {
+    return `<div class="tpl-policy">
+        <span class="kicker">政策更新</span>
+        <h2 class="big-title">${esc(p.title)}</h2>
+        <div class="policy-points">${(p.points || []).map((pt) => `<div class="pt">${esc(pt)}</div>`).join('')}</div>
+      </div>`;
+  }
+  function renderTextTemplate(p) { return `<div class="tpl-text"><h2 class="big-title">${esc(p.title)}</h2><div class="text-body">${esc(p.body)}</div></div>`; }
+  function renderCanvasTemplate(p) { return `<div class="tpl-canvas">${(p.elements || []).map((e) => canvasElHTML(e)).join('')}</div>`; }
   function templateHTML(p) {
-    switch (p.type) {
-      case 'cover': {
-        const mjSrc = D().memojiData || memojiDataUri;
-        const showMj = state.platform === 'xhs' && p.showMemoji !== false && mjSrc;
-        const mjStyle = `height:${(190 * (D().memojiScale || 1)).toFixed(1)}px;transform:translate(${D().memojiOffsetX || 0}px,${D().memojiOffsetY || 0}px);`;
-        return `<div class="tpl-cover">
-            <h1 class="cover-title">${esc(p.title)}</h1>
-            ${showMj ? `<img class="cover-memoji" src="${mjSrc}" style="${mjStyle}" alt="" />` : ''}
-          </div>`;
-      }
-      case 'bilingual':
-        return `<div class="tpl-bilingual">
-            <h2 class="sec-heading">${esc(p.heading)}</h2>
-            ${p.en ? `<p class="bi-en">${esc(p.en)}</p>` : ''}
-            ${p.cn ? `<p class="bi-cn">${esc(p.cn)}</p>` : ''}
-            ${(p.steps && p.steps.filter(Boolean).length) ? `<h3 class="sec-heading action">${esc(p.actionTitle || '要怎么做?')}</h3>
-              <ol class="bi-steps">${p.steps.filter(Boolean).map((s) => `<li>${esc(s)}</li>`).join('')}</ol>` : ''}
-          </div>`;
-      case 'table':
-        return `<div class="tpl-table">
-            ${p.title ? `<h2 class="sec-heading">${esc(p.title)}</h2>` : ''}
-            <table class="tbl">
-              ${(p.columns && p.columns.length) ? `<thead><tr>${p.columns.map((c) => `<th>${esc(c)}</th>`).join('')}</tr></thead>` : ''}
-              <tbody>${(p.rows || []).map((r) => `<tr>${(r || []).map((c) => `<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody>
-            </table>
-          </div>`;
-      case 'list':
-        return `<div class="tpl-list">
-            <span class="kicker">${esc(p.heading || '项目一览')}</span>
-            <div class="list-items">
-              ${(p.items || []).map((it, i) => `
-                <div class="list-item">
-                  <div class="li-num">${i + 1}</div>
-                  <div class="li-text"><div class="li-name">${esc(it.name)}</div>${it.note ? `<div class="li-note">${esc(it.note)}</div>` : ''}</div>
-                </div>`).join('')}
-            </div>
-          </div>`;
-      case 'policy':
-        return `<div class="tpl-policy">
-            <span class="kicker">政策更新</span>
-            <h2 class="big-title">${esc(p.title)}</h2>
-            <div class="policy-points">${(p.points || []).map((pt) => `<div class="pt">${esc(pt)}</div>`).join('')}</div>
-          </div>`;
-      case 'text':
-        return `<div class="tpl-text"><h2 class="big-title">${esc(p.title)}</h2><div class="text-body">${esc(p.body)}</div></div>`;
-      case 'canvas':
-        return `<div class="tpl-canvas">${(p.elements || []).map((e) => canvasElHTML(e)).join('')}</div>`;
-      default: return '';
-    }
+    const def = pageTypeDef(p.type);
+    return def && def.render ? def.render(p) : '';
   }
   function canvasElHTML(e) {
     const vert = (e.kind === 'image' && e.anchor === 'bottom') ? `bottom:${((e.by || 0) * 100).toFixed(3)}%;` : `top:${(e.y * 100).toFixed(3)}%;`;
@@ -644,68 +665,65 @@
     return box;
   }
 
+  function renderCoverEditor(page, b) {
+    b.appendChild(fieldArea('大标题（换行用回车，每行别太长）', page.title, (v) => { page.title = v; touch(); }, 3));
+    const cr = mk('label', 'check-row');
+    const cb = mk('input', '', { type: 'checkbox' }); cb.checked = page.showMemoji !== false;
+    cb.addEventListener('change', () => { page.showMemoji = cb.checked; restructure(); });
+    const sp = mk('span'); sp.textContent = '显示 3D 人物（仅小红书封面）';
+    cr.append(cb, sp); b.appendChild(cr);
+    if (page.showMemoji === false) return;
+    const has = D().memojiData || memojiDataUri;
+    const up = mk('label', 'btn btn-sm'); up.textContent = has ? '更换人物图片' : '上传人物图片';
+    const fi = mk('input', '', { type: 'file', accept: 'image/*' }); fi.style.display = 'none';
+    fi.addEventListener('change', async () => { const f = fi.files && fi.files[0]; fi.value = ''; if (!f) return; if (!/^image\//.test(f.type)) { alert('请选择图片文件'); return; } D().memojiData = await readDataUrl(f); await refreshMemojiNat(); if (!save()) flash('图太大，本地存不下；本次有效，刷新会丢'); restructure(); flash('人物已更新'); });
+    up.appendChild(fi);
+    const clr = mk('button', 'btn btn-sm btn-ghost'); clr.textContent = '清除人物'; clr.addEventListener('click', async () => { D().memojiData = null; await refreshMemojiNat(); restructure(); flash('已清除人物'); });
+    const row = mk('div', 'btn-row'); row.append(up, clr); b.appendChild(row);
+    if (has) {
+      b.appendChild(label('人物大小 / 位置（拖滑块移动；或点下方“转为自由画布”直接拖）'));
+      b.appendChild(rangeRow('缩放', 'memojiScale', 0.4, 2.5, 0.05));
+      b.appendChild(rangeRow('水平', 'memojiOffsetX', -220, 220, 2));
+      b.appendChild(rangeRow('垂直', 'memojiOffsetY', -260, 160, 2));
+      const rs = mk('button', 'btn btn-sm'); rs.textContent = '复原人物'; rs.addEventListener('click', () => { D().memojiScale = 1; D().memojiOffsetX = 0; D().memojiOffsetY = 0; restructure(); flash('已复原人物'); });
+      b.appendChild(rs);
+    }
+  }
+  function renderBilingualEditor(page, b) {
+    b.appendChild(fieldText('小标题（红/藏蓝）', page.heading, (v) => { page.heading = v; touch(); }));
+    b.appendChild(fieldArea('英文加粗段（可空）', page.en, (v) => { page.en = v; touch(); }, 4));
+    b.appendChild(fieldArea('中文翻译 / 正文', page.cn, (v) => { page.cn = v; touch(); }, 4));
+    b.appendChild(fieldText('行动小标题', page.actionTitle, (v) => { page.actionTitle = v; touch(); }, '要怎么做?'));
+    b.appendChild(label('步骤'));
+    b.appendChild(stringListEditor(page.steps, '一条步骤'));
+  }
+  function renderTableEditor(page, b) {
+    b.appendChild(fieldText('表格标题（可空）', page.title, (v) => { page.title = v; touch(); }));
+    b.appendChild(tableEditor(page));
+  }
+  function renderListEditor(page, b) {
+    b.appendChild(fieldText('小标题', page.heading, (v) => { page.heading = v; touch(); }));
+    b.appendChild(label('条目')); b.appendChild(listItemsEditor(page));
+  }
+  function renderPolicyEditor(page, b) {
+    b.appendChild(fieldText('政策标题', page.title, (v) => { page.title = v; touch(); }));
+    b.appendChild(label('要点')); b.appendChild(stringListEditor(page.points, '一条要点'));
+  }
+  function renderTextEditor(page, b) {
+    b.appendChild(fieldText('标题', page.title, (v) => { page.title = v; touch(); }));
+    b.appendChild(fieldArea('正文', page.body, (v) => { page.body = v; touch(); }, 5));
+  }
+  function renderCanvasEditor(page, b) {
+    b.appendChild(label('自由画布（' + (page.elements ? page.elements.length : 0) + ' 个元素）'));
+    const btn = mk('button', 'btn'); btn.textContent = '打开画布编辑器';
+    btn.addEventListener('click', () => openCanvasEditor(page));
+    b.appendChild(btn);
+  }
   function editorBody(page) {
     const b = mk('div', 'pe-body');
-    switch (page.type) {
-      case 'cover': {
-        b.appendChild(fieldArea('大标题（换行用回车，每行别太长）', page.title, (v) => { page.title = v; touch(); }, 3));
-        const cr = mk('label', 'check-row');
-        const cb = mk('input', '', { type: 'checkbox' }); cb.checked = page.showMemoji !== false;
-        cb.addEventListener('change', () => { page.showMemoji = cb.checked; restructure(); });
-        const sp = mk('span'); sp.textContent = '显示 3D 人物（仅小红书封面）';
-        cr.append(cb, sp); b.appendChild(cr);
-        if (page.showMemoji !== false) {
-          const has = D().memojiData || memojiDataUri;
-          const up = mk('label', 'btn btn-sm'); up.textContent = has ? '更换人物图片' : '上传人物图片';
-          const fi = mk('input', '', { type: 'file', accept: 'image/*' }); fi.style.display = 'none';
-          fi.addEventListener('change', async () => { const f = fi.files && fi.files[0]; fi.value = ''; if (!f) return; if (!/^image\//.test(f.type)) { alert('请选择图片文件'); return; } D().memojiData = await readDataUrl(f); await refreshMemojiNat(); if (!save()) flash('图太大，本地存不下；本次有效，刷新会丢'); restructure(); flash('人物已更新'); });
-          up.appendChild(fi);
-          const clr = mk('button', 'btn btn-sm btn-ghost'); clr.textContent = '清除人物'; clr.addEventListener('click', async () => { D().memojiData = null; await refreshMemojiNat(); restructure(); flash('已清除人物'); });
-          const row = mk('div', 'btn-row'); row.append(up, clr); b.appendChild(row);
-          if (has) {
-            b.appendChild(label('人物大小 / 位置（拖滑块移动；或点下方“转为自由画布”直接拖）'));
-            b.appendChild(rangeRow('缩放', 'memojiScale', 0.4, 2.5, 0.05));
-            b.appendChild(rangeRow('水平', 'memojiOffsetX', -220, 220, 2));
-            b.appendChild(rangeRow('垂直', 'memojiOffsetY', -260, 160, 2));
-            const rs = mk('button', 'btn btn-sm'); rs.textContent = '复原人物'; rs.addEventListener('click', () => { D().memojiScale = 1; D().memojiOffsetX = 0; D().memojiOffsetY = 0; restructure(); flash('已复原人物'); });
-            b.appendChild(rs);
-          }
-        }
-        break;
-      }
-      case 'bilingual':
-        b.appendChild(fieldText('小标题（红/藏蓝）', page.heading, (v) => { page.heading = v; touch(); }));
-        b.appendChild(fieldArea('英文加粗段（可空）', page.en, (v) => { page.en = v; touch(); }, 4));
-        b.appendChild(fieldArea('中文翻译 / 正文', page.cn, (v) => { page.cn = v; touch(); }, 4));
-        b.appendChild(fieldText('行动小标题', page.actionTitle, (v) => { page.actionTitle = v; touch(); }, '要怎么做?'));
-        b.appendChild(label('步骤'));
-        b.appendChild(stringListEditor(page.steps, '一条步骤'));
-        break;
-      case 'table':
-        b.appendChild(fieldText('表格标题（可空）', page.title, (v) => { page.title = v; touch(); }));
-        b.appendChild(tableEditor(page));
-        break;
-      case 'list':
-        b.appendChild(fieldText('小标题', page.heading, (v) => { page.heading = v; touch(); }));
-        b.appendChild(label('条目')); b.appendChild(listItemsEditor(page));
-        break;
-      case 'policy':
-        b.appendChild(fieldText('政策标题', page.title, (v) => { page.title = v; touch(); }));
-        b.appendChild(label('要点')); b.appendChild(stringListEditor(page.points, '一条要点'));
-        break;
-      case 'text':
-        b.appendChild(fieldText('标题', page.title, (v) => { page.title = v; touch(); }));
-        b.appendChild(fieldArea('正文', page.body, (v) => { page.body = v; touch(); }, 5));
-        break;
-      case 'canvas': {
-        b.appendChild(label('自由画布（' + (page.elements ? page.elements.length : 0) + ' 个元素）'));
-        const btn = mk('button', 'btn'); btn.textContent = '打开画布编辑器';
-        btn.addEventListener('click', () => openCanvasEditor(page));
-        b.appendChild(btn);
-        break;
-      }
-    }
-    if (['cover', 'text', 'policy', 'list', 'bilingual'].includes(page.type)) {
+    const def = pageTypeDef(page.type);
+    if (def && def.renderEditor) def.renderEditor(page, b);
+    if (def && def.convertible) {
       const conv = mk('button', 'btn btn-sm'); conv.style.marginTop = '10px';
       conv.textContent = '转为自由画布（可拖动·改字号/颜色/位置）';
       conv.addEventListener('click', () => {
@@ -738,34 +756,35 @@
       els.push({ id: uid(), kind: 'text', x: X, y, w: W, text: String(text), size, color: color || '', weight, align: align || 'left', font: D().coverFont || 'hei' });
       y += (lines * size * 1.32) / CH + 0.025;
     };
-    switch (page.type) {
-      case 'cover':
-        if (page.title) push(page.title, 80, title, 900, 'left');
-        if (page.showMemoji !== false && state.platform === 'xhs' && (D().memojiData || memojiDataUri)) els.push(coverMemojiEl(D().memojiData || memojiDataUri));
-        break;
-      case 'text': push(page.title, 46, heading, 900); push(page.body, 24, ink, 400); break;
-      case 'policy': push(page.title, 42, heading, 900); (page.points || []).forEach((pt) => push(pt, 24, ink, 500)); break;
-      case 'list': push(page.heading, 34, heading, 800); (page.items || []).forEach((it, i) => push((i + 1) + '. ' + it.name + (it.note ? '  ' + it.note : ''), 24, ink, 500)); break;
-      case 'bilingual':
-        push(page.heading, 30, heading, 800);
-        if (page.en) push(page.en, 21, ink, 800);
-        if (page.cn) push(page.cn, 21, ink, 400);
-        if (page.steps && page.steps.filter(Boolean).length) { push(page.actionTitle || '要怎么做?', 28, heading, 800); page.steps.filter(Boolean).forEach((s, i) => push((i + 1) + '. ' + s, 21, ink, 500)); }
-        break;
-      default: return false;
-    }
-    const noFooter = page.type === 'cover';
+    const def = pageTypeDef(page.type);
+    if (!def || !def.convertible) return false;
+    const toCanvas = def.toCanvasElements || def.toElements;
+    if (!toCanvas) return false;
+    toCanvas(page, { els, push, memoji: state.platform === 'xhs' ? (D().memojiData || memojiDataUri) : null, TITLE: title, HEAD: heading, INK: ink });
+    const noFooter = !!def.noFooter;
     Object.keys(page).forEach((k) => { if (k !== 'id') delete page[k]; });
     page.type = 'canvas'; page.elements = els; if (noFooter) page.noFooter = true;
     return true;
   }
   function move(i, dir) { const j = i + dir; if (j < 0 || j >= D().pages.length) return; const t = D().pages[i]; D().pages[i] = D().pages[j]; D().pages[j] = t; restructure(); }
+  function renderAddButtons() {
+    const row = $('#add-page-row');
+    if (!row) return;
+    row.querySelectorAll('[data-add]').forEach((b) => b.remove());
+    PAGE_TYPES.filter((def) => def.addable).forEach((def) => {
+      const b = mk('button', 'btn btn-sm');
+      b.type = 'button';
+      b.dataset.add = def.type;
+      b.textContent = '+ ' + def.label;
+      row.appendChild(b);
+    });
+  }
   function renderEditors() {
     const root = $('#page-editors'); root.innerHTML = '';
     D().pages.forEach((page, i) => {
       const card = mk('div', 'pe-card'); card.dataset.pid = page.id;
       const head = mk('div', 'pe-head');
-      const type = mk('span', 'pe-type'); type.innerHTML = `<span class="dot"></span>${TYPE_LABEL[page.preset || page.type] || page.type}`;
+      const type = mk('span', 'pe-type'); type.innerHTML = `<span class="dot"></span>${pageTypeLabel(page.preset || page.type)}`;
       const idx = mk('span', 'pe-idx'); idx.textContent = '第 ' + (i + 1) + ' 页';
       const sp = mk('span', 'spacer');
       const up = mk('button', 'icon-btn'); up.textContent = '↑'; up.title = '上移'; up.disabled = i === 0; up.addEventListener('click', (e) => { e.stopPropagation(); move(i, -1); });
@@ -841,7 +860,7 @@
     return pages.map((p) => cnPunctDeep(p)).map(normalizePage).filter(Boolean);
   }
   function normalizePage(p) {
-    if (!p || !TYPE_LABEL[p.type]) return null;
+    if (!p || !pageTypeDef(p.type)) return null;
     if (p.type === 'bilingual') p = biToText(p); // 双语分析已停用 → 文本
     if (p.type === 'table') {
       const cols = toStrArr(p.columns, ['专业', '中国学生录取', '全部录取', '申请要求']);
@@ -855,7 +874,7 @@
     else if (p.type === 'list') { c.heading = str(p.heading, ''); c.items = Array.isArray(p.items) ? p.items.map((it) => ({ name: str(it && it.name, ''), note: str(it && it.note, '') })) : []; }
     else if (p.type === 'policy') { c.title = str(p.title, ''); c.points = toStrArr(p.points, []); }
     else if (p.type === 'text') { c.title = str(p.title, ''); c.body = str(p.body, ''); }
-    return { id: uid(), type: 'canvas', preset: p.type, noFooter: p.type === 'cover', elements: elementsFromContent(p.type, c, deckOpts()) };
+    return { id: uid(), type: 'canvas', preset: p.type, noFooter: !!(pageTypeDef(p.type) && pageTypeDef(p.type).noFooter), elements: elementsFromContent(p.type, c, deckOpts()) };
   }
   function normEl(e) {
     if (!e) return null;
@@ -886,7 +905,7 @@
   function extractDeckText() {
     const out = [];
     D().pages.forEach((p, i) => {
-      out.push('【第' + (i + 1) + '页 ' + (TYPE_LABEL[p.preset || p.type] || '') + '】');
+      out.push('【第' + (i + 1) + '页 ' + pageTypeLabel(p.preset || p.type) + '】');
       if (p.type === 'table') { if (p.title) out.push(p.title); out.push((p.columns || []).join(' | ')); (p.rows || []).forEach((r) => out.push((r || []).join(' | '))); }
       else (p.elements || []).forEach((e) => { if (e.kind === 'text' && e.text) out.push(e.text); });
     });
@@ -1596,6 +1615,7 @@
     document.documentElement.dataset.platform = state.platform;
     document.querySelectorAll('.plat-btn').forEach((b) => b.classList.toggle('is-active', b.dataset.platform === state.platform));
     populateFontSelects();
+    renderAddButtons();
     wire(); wireCanvas(); wireLogoEditor();
     $('#btn-copy-other').addEventListener('click', copyToOther);
     setUiColor(state.uiColor);
